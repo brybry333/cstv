@@ -1,0 +1,366 @@
+/* CS:TV: Roboto Mono, square corners, greys; the blue is solid blocks (logo, section labels, the main
+   action, the active tab), black text on it like a teletext page. No rounded anything. */
+@font-face { font-family: "Roboto Mono"; src: url("/static/robotomono.woff2") format("woff2"); font-weight: 100 700; font-display: swap; }
+:root {
+  --bg: #0a0a0a;
+  --panel: #101010;
+  --panel-2: #171717;
+  --hover: #1d1d1d;
+  --line: #242424;
+  --line-2: #363636;
+  --text: #e4e4e4;
+  --muted: #8a8a8a;
+  --faint: #5a5a5a;
+  --accent: #4a8ff0;
+  --on-accent: #000000;
+  --ok: #4fd18b;
+  --live: #ff4d4d;
+  --danger: #ff6b6b;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; border-radius: 0 !important; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 13px/1.5 "Roboto Mono", ui-monospace, monospace; min-height: 100vh; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
+a { color: var(--text); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+a:hover { text-decoration-color: var(--accent); }
+button, input, select { font: inherit; color: inherit; }
+svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; flex: none; }
+code { font: inherit; color: var(--text); background: var(--panel-2); padding: 0 4px; }
+
+/* ---- controls */
+button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; line-height: 1; height: 32px; padding: 0 13px;
+  cursor: pointer; white-space: nowrap; background: var(--panel); border: 1px solid var(--line-2); color: var(--text); font-size: 12.5px;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 140ms var(--ease-out);
+}
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled, select:disabled, input:disabled { opacity: .35; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+button.danger { color: var(--danger); }
+button.ghost { background: transparent; border-color: transparent; }
+@media (hover: hover) and (pointer: fine) {
+  button:hover:not(:disabled) { background: var(--hover); border-color: #4a4a4a; }
+  button.primary:hover:not(:disabled) { background: #6aa3f3; border-color: #6aa3f3; }
+  button.ghost:hover:not(:disabled) { background: var(--hover); border-color: transparent; }
+}
+input[type=text], input[type=password], input:not([type]), select {
+  height: 32px; background: #0d0d0d; border: 1px solid var(--line-2); padding: 0 10px; min-width: 0; font-size: 12.5px;
+}
+textarea { font: inherit; color: inherit; background: #0d0d0d; border: 1px solid var(--line-2); padding: 8px 10px; resize: vertical; width: 100%; font-size: 12.5px; }
+textarea:focus { outline: none; border-color: var(--accent); }
+input::placeholder { color: var(--faint); }
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+button.danger-fill { background: var(--danger); border-color: var(--danger); color: #000; }
+button:focus-visible, a:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+input[type=checkbox], input[type=range] { accent-color: var(--accent); }
+
+/* a section label: blue capitals beside a blue bar (blocks are buttons, so a label isn't one) */
+.label { display: inline-flex; align-items: center; height: 16px; padding-left: 8px; border-left: 3px solid var(--accent); color: var(--accent);
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.count { color: var(--faint); font-size: 11.5px; }
+
+/* ---- header */
+.top { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+.top .bar { max-width: 1240px; margin: 0 auto; height: 52px; padding: 0 20px; display: flex; align-items: center; gap: 20px; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--text); font-weight: 700; font-size: 14px; letter-spacing: .02em; text-decoration: none; }
+.brand img { width: 24px; height: 24px; display: block; }
+.nav { display: flex; height: 100%; }
+.nav a { display: flex; align-items: center; height: 100%; padding: 0 11px; white-space: nowrap; color: var(--muted); text-decoration: none; font-size: 12.5px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.nav a:hover { color: var(--text); }
+.nav a.on { color: var(--text); border-bottom-color: var(--accent); }
+.lobby-head { display: flex; align-items: center; gap: 10px; min-width: 0; padding-left: 18px; border-left: 1px solid var(--line); height: 24px; }
+.lobby-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+.lobby-name .lock svg { width: 12px; height: 12px; color: var(--muted); }
+.code-chip { height: 26px; padding: 0 8px 0 10px; gap: 8px; font-weight: 700; letter-spacing: .12em; background: var(--panel); }
+.code-chip::before { content: ""; width: 6px; height: 6px; background: var(--ok); }
+.code-chip svg { width: 13px; height: 13px; color: var(--muted); }
+.me { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 12.5px; }
+.me > img { width: 24px; height: 24px; }
+.me a { color: var(--muted); white-space: nowrap; }
+/* Valve's own "Sign in through Steam" button (sits_01.png, served from here) */
+.steam-btn { display: inline-flex; flex: none; line-height: 0; text-decoration: none; transition: filter 120ms ease; }
+.steam-btn img { display: block; width: 180px; height: 35px; }
+.steam-btn:hover { filter: brightness(1.15); }
+
+main { flex: 1; width: 100%; max-width: 1240px; margin: 0 auto; padding: 28px 20px 40px; }
+.loading { color: var(--muted); padding: 60px 0; }
+
+/* ---- pages */
+.home { max-width: 860px; }
+.home > h1 { font-size: 20px; font-weight: 700; margin: 0 0 18px; }
+.section { margin-bottom: 30px; }
+.section > header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.section > header .spacer { flex: 1; }
+.joinbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.joinbar form { display: flex; gap: 0; }
+.joinbar form input { width: 160px; letter-spacing: .14em; text-transform: uppercase; border-right: 0; }
+.joinbar form input::placeholder { letter-spacing: normal; text-transform: none; }
+.bad { color: var(--danger); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > input { flex: 1; }
+
+/* tables (lobby lists, connected games, queue, history) */
+.list { width: 100%; border-collapse: collapse; border: 1px solid var(--line); }
+.list th { text-align: left; font-weight: 500; color: var(--faint); font-size: 11.5px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.list td { padding: 0 12px; height: 44px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.list tr:last-child td { border-bottom: 0; }
+.list tbody tr:hover td { background: var(--panel); }
+.list .c { font-weight: 700; letter-spacing: .12em; width: 1%; }
+.list .n { width: 100%; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.list .m { color: var(--muted); }
+.list .x { width: 1%; text-align: right; }
+.list .x button + button { margin-left: 6px; }
+.list button { height: 26px; padding: 0 10px; font-size: 12px; }
+.list .empty td { color: var(--faint); }
+.list .t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list .sub { display: block; color: var(--faint); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list.rows2 td, .list.lobbies td { height: 56px; }
+.list .th { width: 1%; padding-right: 0; }
+.list .th img, .list .th .th-none { display: block; width: 64px; height: 36px; object-fit: cover; background: var(--panel-2); }
+.list .ppl { width: 1%; color: var(--muted); }
+.list .ppl .dot { display: inline-block; margin-right: 6px; vertical-align: 1px; }
+.list .ppl .who { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--faint); font-size: 11px; }
+.list .t .badge { margin-left: 8px; vertical-align: 1px; }
+.pager { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.pager button { height: 28px; }
+.admin { max-width: none; }
+.pair-code { font-size: 20px; font-weight: 700; letter-spacing: .06em; padding: 14px 16px; background: var(--panel); border: 1px solid var(--accent);
+  color: var(--text); user-select: all; display: inline-block; margin-bottom: 10px; }
+.timer { color: var(--muted); }
+
+/* ---- lobby */
+.lobby { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+.lobby.xchat-on { grid-template-columns: minmax(0, 1fr) 340px 360px; }
+.stage { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+/* --pv: the room the picture may take in height; its width follows (16:9), never wider than the column */
+.player-wrap { --pv: calc(100vh - 290px); display: flex; justify-content: center; }
+.player { position: relative; aspect-ratio: 16 / 9; width: min(100%, max(480px, var(--pv) * 16 / 9)); background: #000; border: 1px solid var(--line); overflow: hidden; }
+.xchat { position: sticky; top: 72px; height: calc(100vh - 100px); min-height: 440px; border: 1px solid var(--line); background: var(--panel);
+  display: flex; flex-direction: column; overflow: hidden; }
+.xchat-head { display: flex; align-items: center; height: 37px; padding: 0 12px; border-bottom: 1px solid var(--line); flex: none; }
+.xchat-head .label { text-transform: none; letter-spacing: .02em; }
+.xchat-head .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xchat-tools { display: flex; gap: 2px; margin-right: -6px; }
+.xchat-tools button { height: 26px; padding: 0 7px; font-size: 11.5px; color: var(--muted); }
+.xchat-tools button:hover { color: var(--text); }
+.xchat-tools svg { width: 13px; height: 13px; }
+.xchat-log { min-height: 0; }
+.xchat-frame { display: block; flex: 1; min-height: 0; width: 100%; border: 0; background: var(--panel); }
+.chatlog .m.paid { box-shadow: inset 2px 0 #ffd600; }
+.chatlog .m.paid .from { background: #ffd600; }
+/* cinema: a dark layer over the whole page, the picture above it; gone while the mouse moves or someone types */
+.cinema-dim { position: fixed; inset: 0; z-index: 15; background: #000; opacity: 0; pointer-events: none; transition: opacity 700ms var(--ease-out); }
+body.cinema .cinema-dim.dark { opacity: .9; transition-duration: 1200ms; }
+body.cinema .player-wrap { position: relative; z-index: 16; }
+.player iframe, .player .embed { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+/* The embed is taller than the box: the 16:9 picture still fills the box exactly (YouTube letterboxes it in the
+   middle), while YouTube's title bar (top) and logo / "More videos" (bottom) sit in the strips that are cut off. */
+.player .embed { top: -72px; height: calc(100% + 144px); }
+.player-msg { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; text-align: center; padding: 20px; color: var(--muted); background: #000; }
+.player-msg b { color: var(--text); font-size: 14px; }
+.player-shield { position: absolute; inset: 0; z-index: 2; }
+.player iframe { pointer-events: none; }   /* the mouse never reaches the embed: it would show its own controls */
+.player .stream-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+/* on YouTube's pause icon (the middle of the picture) for a few seconds after each start / seek; --yt-k = the
+   embed's scale (its icon with its round backing is ~48 of its pixels) */
+.player-bezel { position: absolute; left: 50%; top: 50%; z-index: 1; width: max(34px, calc(66px * var(--yt-k, 1))); aspect-ratio: 1;
+  transform: translate(-50%, -50%); background: #0b0b0b; color: var(--accent); display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 260ms ease; }
+.player-bezel svg { width: 42%; height: 42%; }
+.player-bezel.on { opacity: 1; transition-duration: 0ms; }
+.player-cover:not(.gone) ~ .player-bezel { opacity: 0; }   /* the cover (with its own label) is on the middle then */
+.player:fullscreen { border: 0; }
+/* over the embed while it isn't playing (loading, paused, ended): YouTube's title bar, buttons and suggestions never show */
+.player-cover { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center;
+  background: #000 center / cover no-repeat; opacity: 1; transition: opacity 180ms var(--ease-out); }
+.player-cover::before { content: ""; position: absolute; inset: 0; background: #000a; }
+.player-cover.gone { opacity: 0; pointer-events: none; transition-duration: 140ms; }
+.player-cover .state { position: relative; display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+  background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; }
+.player-cover .state svg { width: 12px; height: 12px; stroke-width: 3; }
+.player-cover .spin { width: 10px; height: 10px; background: var(--on-accent); animation: blink 900ms steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+.overlay-btn { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 3; }
+
+.now { display: flex; flex-direction: column; gap: 6px; }
+.now-title { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; line-height: 1.35; }
+.now-meta { color: var(--muted); font-size: 12px; display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center; }
+.now-meta .watching { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.now-meta .watching::before { content: ""; width: 6px; height: 6px; background: var(--ok); }
+.badge { font-size: 11px; height: 18px; display: inline-flex; align-items: center; padding: 0 6px; border: 1px solid var(--line-2); color: var(--muted); }
+.badge.live { background: var(--live); border-color: var(--live); color: #000; font-weight: 700; }
+.badge.held { border-color: var(--accent); color: var(--accent); }
+/* seek bar: a thin line that thickens under the pointer; the knob shows where it is (and where it's held) */
+.seek { position: relative; height: 16px; display: flex; align-items: center; touch-action: none; }
+.seek .track { position: relative; width: 100%; height: 3px; background: var(--line); overflow: hidden; transition: height 120ms var(--ease-out); }
+.seek .fill { position: absolute; inset: 0; background: var(--accent); transform: scaleX(0); transform-origin: left; }
+.seek .knob { position: absolute; top: 50%; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; background: var(--accent); opacity: 0; transition: opacity 120ms ease; }
+.seek .tip { position: absolute; bottom: 100%; transform: translateX(-50%); margin-bottom: 4px; padding: 2px 6px; font-size: 11px;
+  background: var(--panel-2); border: 1px solid var(--line-2); white-space: nowrap; pointer-events: none; }
+.seek.can { cursor: pointer; }
+.seek.can:hover .track, .seek.drag .track { height: 5px; }
+.seek.can:hover .knob, .seek.drag .knob { opacity: 1; }
+.controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.controls button, .controls select { height: 30px; font-size: 12px; }
+.controls .spacer { flex: 1; }
+.controls .vol { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.controls input[type=range] { width: 100px; }
+.toggle.on { border-color: var(--accent); color: var(--accent); }
+.add { display: flex; gap: 0; }
+.add input { flex: 1; border-right: 0; }
+.add button + button { margin-left: 6px; }
+
+.queue .list .n { font-weight: 500; }
+.queue .list .num { width: 1%; color: var(--faint); }
+
+.side { background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column;
+  height: calc(100vh - 100px); min-height: 440px; position: sticky; top: 72px; overflow: hidden; }
+.tabs { display: flex; border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1; height: 36px; border: 0; border-right: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; padding: 0 6px; }
+.tabs button:last-child { border-right: 0; }
+.tabs button.on { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+@media (hover: hover) and (pointer: fine) { .tabs button:hover:not(.on) { background: var(--hover); color: var(--text); } .tabs button.on:hover { background: var(--accent); } }
+.tab { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.tab[hidden] { display: none; }
+.tabs .count { color: inherit; opacity: .7; margin-left: 2px; }
+.chatlog { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.chatlog .m { overflow-wrap: anywhere; position: relative; padding: 2px 6px; margin: 0 -6px; }
+@media (hover: hover) { .chatlog .m:hover { background: #ffffff07; } }
+.chatlog .m .mod { display: none; position: absolute; right: 2px; top: -3px; gap: 0; background: var(--panel-2); border: 1px solid var(--line-2); }
+.chatlog .m:hover .mod, .chatlog .m .mod:focus-within { display: inline-flex; }
+.chatlog .m .mod button { height: 24px; padding: 0 6px; border: 0; background: none; color: var(--muted); }
+.chatlog .m .mod button:hover { color: var(--text); background: #ffffff10; }
+.chatlog .m .mod button.danger:hover { color: var(--danger); }
+.chatlog .m .mod svg { width: 13px; height: 13px; }
+.emote { height: 28px; width: auto; vertical-align: middle; margin: -4px 1px; }
+.chatlog .gif { display: block; margin-top: 4px; max-width: 100%; height: auto; max-height: 180px; width: auto; }
+.chatlog .m .n { font-weight: 700; margin-right: 6px; }
+.chatlog .m .from { color: var(--on-accent); background: var(--muted); font-size: 9.5px; font-weight: 700; padding: 0 3px; margin-right: 5px; vertical-align: 1px; }
+.chatlog .sys { color: var(--faint); font-size: 11.5px; }
+.chatlog .at { color: var(--accent); font-weight: 700; }
+.chatlog .m.mention { background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 2px 0 var(--accent); }
+@media (hover: hover) { .chatlog .m.mention:hover { background: color-mix(in srgb, var(--accent) 17%, transparent); } }
+.mention-list { position: absolute; left: 10px; right: 10px; bottom: calc(100% - 4px); z-index: 4; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line-2); box-shadow: 0 12px 40px #000c; max-height: 260px; overflow-y: auto; }
+.mention-list button { height: 32px; border: 0; background: none; text-align: left; padding: 0 10px; justify-content: flex-start; }
+.mention-list button.on { background: var(--hover); box-shadow: inset 2px 0 var(--accent); }
+.mention-list button.off { opacity: .55; }
+.mention-list .n { font-weight: 700; }
+.chat-foot { position: relative; border-top: 1px solid var(--line); }
+.chat-form { display: flex; gap: 0; padding: 10px; }
+.chat-form input { flex: 1; border-right: 0; }
+.chat-form .pickbtn { padding: 0 9px; border-right: 0; }
+.chat-form .gifbtn { font-size: 11px; font-weight: 700; }
+.chat-form .pickbtn svg { width: 16px; height: 16px; }
+.slow-note { padding: 8px 12px 0; color: var(--faint); font-size: 11.5px; }
+.gifpick { position: absolute; left: 8px; right: 8px; bottom: calc(100% + 6px); height: 340px; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line-2); box-shadow: 0 12px 40px #000c; z-index: 3; overflow: hidden;
+  transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out); }
+@starting-style { .gifpick { opacity: 0; transform: translateY(4px); } }
+.gifpick .row { padding: 8px; gap: 0; }
+/* two columns side by side, each filled top-down (the script puts each GIF in the shorter one) */
+.gifgrid { flex: 1; min-height: 0; overflow-y: auto; display: flex; align-items: flex-start; gap: 6px; padding: 0 8px; }
+.gifcol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.gifgrid button { display: block; width: 100%; height: auto; padding: 0; border: 0; background: var(--panel-2); overflow: hidden; }
+.gifgrid img { display: block; width: 100%; height: auto; }
+.emotegrid { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 8px; }
+.emotegrid section + section { margin-top: 10px; }
+.emotegrid .label { margin-bottom: 6px; }
+.emotes { display: flex; flex-wrap: wrap; gap: 2px; }
+.emotes button { width: 42px; height: 38px; padding: 0; border: 0; background: none; }
+.emotes img { display: block; max-width: 38px; max-height: 30px; }
+.giphy-attr { padding: 6px 10px; font-size: 10.5px; color: var(--faint); text-align: right; }
+.timeouts { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.timeouts span { color: var(--muted); font-size: 11.5px; margin-right: 2px; }
+.timeouts button { height: 24px; padding: 0 8px; font-size: 11.5px; }
+.people { overflow-y: auto; padding: 6px; }
+.person > .head { display: flex; align-items: center; gap: 10px; padding: 6px; cursor: default; }
+.person.manage > .head { cursor: pointer; }
+.person.manage > .head:hover { background: var(--panel-2); }
+.person img, .person .noav { width: 24px; height: 24px; background: var(--panel-2); flex: none; }
+.person .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person.off .nm, .person.off img { opacity: .4; }
+.person .tags { display: flex; gap: 4px; align-items: center; color: var(--faint); }
+.dot { width: 6px; height: 6px; background: var(--faint); flex: none; }
+.dot.on { background: var(--ok); }
+.person .panel { padding: 6px 6px 12px 40px; display: flex; flex-direction: column; gap: 8px; }
+.perms { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 12px; }
+.perms label, .check { display: flex; align-items: center; gap: 6px; }
+.guests { padding: 8px 6px; display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; }
+.guests .row button { height: 24px; font-size: 11.5px; }
+.history { overflow-y: auto; overflow-x: hidden; }
+.history .list { border: 0; table-layout: fixed; }
+.history .list td { height: auto; padding: 9px 12px; }
+.history .t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history .sub { display: block; color: var(--faint); font-size: 11px; }
+.history .x { width: 140px; padding-left: 0; }
+.settings { overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 16px; }
+.settings .f { display: flex; flex-direction: column; gap: 6px; }
+.settings .f > .label { align-self: flex-start; }
+.settings .row { gap: 0; }
+.settings .row > input { border-right: 0; }
+.settings .row > button + button { margin-left: 6px; }
+
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--line-2);
+  padding: 9px 14px; z-index: 20; max-width: min(90vw, 520px); font-size: 12.5px;
+  transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out); }
+@starting-style { .toast { opacity: 0; transform: translate(-50%, 6px); } }
+.toast.bad { border-color: var(--danger); color: var(--danger); }
+.modal-back { position: fixed; inset: 0; z-index: 30; background: #000b; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal { width: min(460px, 100%); background: var(--panel); border: 1px solid var(--line-2); padding: 18px; display: flex; flex-direction: column; gap: 14px;
+  box-shadow: 0 20px 60px #000; transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out); }
+@starting-style { .modal { opacity: 0; transform: translateY(6px); } }
+.modal .label { align-self: flex-start; }
+.label.warn { border-left-color: var(--danger); color: var(--danger); }
+.warn-text { margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.row.end { justify-content: flex-end; }
+.col { display: flex; flex-direction: column; gap: 8px; }
+.spoiler { filter: blur(5px); cursor: pointer; user-select: none; transition: filter 120ms ease; }
+.spoiler.shown { filter: none; user-select: text; }
+.home.admin { max-width: 1100px; }
+#adminLive { display: contents; }
+.visits-body { overflow-x: auto; }
+.list.visits td { height: 36px; }
+.list.visits td.n { min-width: 140px; }
+.list.visits .dot { display: inline-block; margin-right: 8px; vertical-align: 1px; }
+.list.visits a { color: inherit; }
+.list.visits a:hover { color: var(--accent); }
+.list th.sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.list th.sort:hover, .list th.sort.on { color: var(--text); }
+
+body[data-view=home] .top .bar, body[data-view=link] .top .bar { max-width: 900px; }
+body[data-view=home] main, body[data-view=link] main { max-width: 900px; }
+body[data-view=admin] .top .bar, body[data-view=admin] main { max-width: 1240px; }
+/* the lobby fills the window: zooming out (or a bigger window) makes the picture bigger, like YouTube */
+body[data-view=lobby] .top .bar, body[data-view=lobby] main { max-width: none; }
+
+@media (max-width: 960px) {
+  .lobby, .lobby.xchat-on { grid-template-columns: minmax(0, 1fr); }
+  .side, .xchat { position: static; height: 520px; grid-row: auto; grid-column: 1; }
+  .player { width: 100%; }
+}
+@media (max-width: 640px) {
+  main { padding: 18px 12px 32px; }
+  .top .bar { padding: 0 12px; gap: 12px; }
+  .nav a { padding: 0 7px; }
+  .brand > span, .me .who, .lobby-name, body[data-view=lobby] .nav { display: none; }
+  .lobby-head { padding-left: 10px; }
+  .steam-btn img { width: 144px; height: 28px; }
+  .add { flex-wrap: wrap; gap: 6px; }
+  .add input { flex-basis: 100%; border-right: 1px solid var(--line-2); }
+  .add button + button { margin-left: 0; }
+  .controls .spacer { display: none; }
+  .list .hide-s { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  button, .steam-btn { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease; }
+  button:active:not(:disabled) { transform: none; }
+  .toast { transition: opacity 180ms ease; }
+  @starting-style { .toast { opacity: 0; transform: translateX(-50%); } .gifpick { opacity: 0; transform: none; } }
+  .progress > div { transition: none; }
+  .player-cover .spin { animation: none; }
+}

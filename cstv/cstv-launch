@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# cstv-launch — start CS:S with CS:TV: the cstvd helper runs while the game runs, and the client mod
+# is loaded into the game.
+#
+#   Steam launch options:   "/path/to/cstv/cstv-launch" %command%
+#   (other wrappers go before or after it: cstv-launch gamemoderun %command%)
+#
+# With systemd, cstvd.socket starts the helper when the game connects; this script still loads the
+# client mod and installs its materials. CSTV_DISABLE=1 keeps the client mod out.
+# Helper: the user service cstvd.service if there is one (logs: journalctl --user -u cstvd), otherwise
+# cstvd itself in the background (log: ~/.cache/cstv/cstvd.log). Stopped when the game exits, and started
+# with CSTV_QUIT_WITHOUT_GAME=1 so it also quits by itself if this script gets killed.
+# CSTV_SERVICE=<unit> picks another service name; CSTV_SERVICE= (empty) never uses a service.
+# Mod: libcstv.so is added to LD_PRELOAD. LD_PRELOAD splits on spaces, so a folder with spaces in its
+# name is reached through a symlink in ~/.cache/cstv. The screen materials go to
+# <game>/cstrike/custom/cstv (the game folder comes from the command: .../cstrike.sh, cstrike_linux64).
+# Everything before %command% runs outside Steam's runtime container, which is where the helper has to
+# run: it needs the system's mpv, yt-dlp, streamlink, Python and fonts.
+
+DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+SO=$DIR/client/libcstv.so
+HELPER=$DIR/helper/cstvd
+SERVICE=${CSTV_SERVICE-cstvd.service}
+say() { echo "cstv-launch: $*" >&2; }
+
+(( $# )) || { say "usage: cstv-launch <command...>   (Steam launch options: cstv-launch %command%)"; exit 2; }
+args=("$@")
+
+# host programs get a clean environment: Steam's LD_LIBRARY_PATH (its own older libraries) and the
+# game's LD_PRELOAD must not reach them
+host() { env -u LD_PRELOAD -u LD_LIBRARY_PATH "$@"; }
+
+# ---- the helper
+own= pid=
+if host systemctl --user is-active -q cstvd.socket 2>/dev/null; then
+    :   # socket activation: the game's connection starts the helper, and it quits by itself
+elif [[ -n $SERVICE ]] && host systemctl --user cat "$SERVICE" >/dev/null 2>&1; then
+    if host systemctl --user start "$SERVICE"; then own=service; else say "could not start $SERVICE"; fi
+elif pgrep -x cstvd >/dev/null; then
+    say "a cstvd is already running, using that one"
+elif [[ -x $HELPER ]]; then
+    mkdir -p "$HOME/.cache/cstv"
+    # env directly, not through host(): a function in the background gets its own subshell, and $!
+    # would be that subshell instead of the helper
+    CSTV_QUIT_WITHOUT_GAME=1 env -u LD_PRELOAD -u LD_LIBRARY_PATH "$HELPER" >>"$HOME/.cache/cstv/cstvd.log" 2>&1 &
+    pid=$! own=pid
+else
+    say "no helper at $HELPER (build it: make -C helper); the TV will only show its placeholder"
+fi
+stop_helper() {
+    case $own in
+        service) host systemctl --user stop "$SERVICE" ;;
+        pid) kill "$pid" 2>/dev/null ;;
+    esac
+    own=
+}
+trap stop_helper EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# ---- the client mod's materials: drawn client-side, so every player needs them
+assets=$DIR/assets/materials/cstv
+for a in "${args[@]}"; do
+    [[ $a == */cstrike.sh || $a == */cstrike_linux64 || $a == */hl2.sh ]] || continue
+    dest=$(dirname "$a")/cstrike/custom/cstv/materials/cstv
+    for f in "$assets"/*; do
+        cmp -s "$f" "$dest/${f##*/}" && continue
+        mkdir -p "$dest" && cp "$f" "$dest/" || say "could not install ${f##*/} into $dest"
+    done
+    break
+done
+
+# ---- the client mod
+if [[ ${CSTV_DISABLE-} == 1 ]]; then
+    :
+elif [[ -f $SO ]]; then
+    so=$SO
+    if [[ $so == *[[:space:]]* ]]; then
+        mkdir -p "$HOME/.cache/cstv"
+        ln -sfn "$SO" "$HOME/.cache/cstv/libcstv.so"
+        so=$HOME/.cache/cstv/libcstv.so
+    fi
+    # add to an LD_PRELOAD=... already in the command line (an env there would replace an exported one)
+    added=0
+    for i in "${!args[@]}"; do
+        [[ ${args[i]} == LD_PRELOAD=* ]] && { args[i]="${args[i]}:$so"; added=1; break; }
+    done
+    (( added )) || export LD_PRELOAD="${LD_PRELOAD:+$LD_PRELOAD:}$so"
+else
+    say "no client mod at $SO (build it: make -C client)"
+fi
+
+"${args[@]}"
+exit $?

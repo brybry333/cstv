@@ -1,0 +1,14 @@
+{
+  "name": "browsertest",
+  "version": "1.0.0",
+  "description": "Cross-browser smoke test for the cstv.xyz site (Playwright)",
+  "scripts": {
+    "local": "node run.mjs --local",
+    "live": "node run.mjs https://cstv.xyz --out results-live"
+  },
+  "type": "module",
+  "devDependencies": {
+    "playwright": "^1.64.1"
+  },
+  "private": true
+}

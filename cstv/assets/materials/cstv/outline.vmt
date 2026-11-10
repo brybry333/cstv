@@ -1,0 +1,7 @@
+// place-mode outline drawn by libcstv.so: plain white tinted by the vertex colour
+"UnlitGeneric"
+{
+	"$basetexture" "vgui/white"
+	"$vertexcolor" "1"
+	"$nocull" "1"
+}

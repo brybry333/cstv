@@ -1,0 +1,9 @@
+// the chat panel drawn by libcstv.so next to a screen below 100 % opacity: see-through by vertex alpha
+"UnlitGeneric"
+{
+	"$basetexture" "cstv/chat"
+	"$translucent" "1"
+	"$vertexalpha" "1"
+	"$vertexcolor" "1"
+	"$nocull" "1"
+}

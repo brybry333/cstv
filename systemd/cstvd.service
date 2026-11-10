@@ -1,0 +1,13 @@
+[Unit]
+Description=CS:TV helper (streams videos for in-game CS:S screens)
+Requires=cstvd.socket
+After=cstvd.socket
+
+[Service]
+# Started by cstvd.socket when the game (libcstv.so, loaded by cstv-launch) connects.
+# CSTV_QUIT_WITHOUT_GAME: quits by itself 15 s after the game leaves (180 s if no game ever connects), and the socket starts it again next time.
+# space-free alias of "~/Documents/counter strike source shit"
+ExecStart=%h/.local/lib/css/cstv/helper/cstvd
+Environment=CSTV_QUIT_WITHOUT_GAME=1
+Restart=on-failure
+RestartSec=2

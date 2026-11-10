@@ -1,0 +1,63 @@
+# mediamtx for CS:TV streams: RTMP in (the streamer's cstvd) and out (in-game viewers), WebRTC out (the website),
+# HLS out on 127.0.0.1 (the website's fallback, through the hub).
+# Every publish/read is checked by the hub (hub.py, stream_auth): publish needs the stream's key, reads need a
+# live stream id. The website's WebRTC offer/answer goes through the hub (only it reaches 127.0.0.1:8889); the
+# video itself goes straight to the viewer on 8189 (UDP, TCP if UDP is blocked), so the Oracle security list
+# must allow both, and TCP 8554 (RTSP). Written for mediamtx v1.21.2. PUBLIC_HOST is filled in by streams-setup.sh.
+logLevel: info
+logDestinations: [stdout]
+
+authMethod: http
+authHTTPAddress: http://127.0.0.1:27971/auth   # the hub (CSTV_HUB_AUTH_PORT)
+authHTTPExclude: []
+
+api: false
+metrics: false
+pprof: false
+playback: false
+# RTSP out (TCP only) for in-game viewers: it carries the Opus sound that RTMP out drops (cstvd reads our own
+# rtmp:// stream links as rtsp://<host>:8554/...; Opus because WebRTC can't carry AAC)
+rtsp: true
+rtspTransports: [tcp]
+rtspEncryption: "no"
+rtspAddress: :8554
+# HLS (127.0.0.1 only) for browsers whose WebRTC can't show H.264 (Vivaldi: no H.264 decoder of its own; its
+# <video> plays H.264 through the OS): the hub passes it on to the site under per-viewer tokens (/hls/<token>/...).
+# Low-latency HLS in fMP4 carries H.264 + Opus; remuxed all the time a stream is live so a fallback starts at once.
+hls: true
+hlsAddress: 127.0.0.1:8888
+hlsEncryption: false
+hlsAllowOrigins: []
+hlsAlwaysRemux: true
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+hlsSegmentMaxSize: 50M
+hlsMuxerCloseAfter: 60s
+webrtc: true
+webrtcAddress: 127.0.0.1:8889
+webrtcEncryption: false
+webrtcAllowOrigins: ["*"]
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: :8189
+# the box only knows its private address: viewers are told the public one
+webrtcIPsFromInterfaces: false
+webrtcAdditionalHosts: [PUBLIC_HOST]
+srt: false
+moq: false
+
+rtmp: true
+rtmpAddress: :1935
+rtmpEncryption: "no"
+
+pathDefaults:
+  source: publisher
+  # a reconnecting streamer replaces its own stale session instead of being refused
+  overridePublisher: true
+  # tell the hub when a stream really has its tracks: the room switches to it only then (an early reader gets 404)
+  runOnAvailable: curl -s -m 2 -X POST http://127.0.0.1:27971/ready/$MTX_PATH
+  runOnUnavailable: curl -s -m 2 -X POST http://127.0.0.1:27971/notready/$MTX_PATH
+
+paths:
+  "~^live/[0-9a-f]{16}$": {}

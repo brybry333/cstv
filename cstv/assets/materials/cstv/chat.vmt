@@ -1,0 +1,6 @@
+// drawn by libcstv.so as a quad after the world; it picks which side to show, so no culling
+"UnlitGeneric"
+{
+	"$basetexture" "cstv/chat"
+	"$nocull" "1"
+}

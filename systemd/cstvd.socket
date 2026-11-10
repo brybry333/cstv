@@ -1,0 +1,12 @@
+[Unit]
+Description=CS:TV helper socket (starts cstvd when the game connects)
+
+[Socket]
+# The game (inside Steam's runtime container, which shares /tmp) connects here; systemd then starts
+# cstvd.service and hands it this socket. cstvd quits by itself 15 s after the game is gone.
+ListenStream=/tmp/cstv/ctl.sock
+SocketMode=0600
+DirectoryMode=0700
+
+[Install]
+WantedBy=sockets.target

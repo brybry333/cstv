@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS:TV</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top"><div class="bar">
+  <a class="brand" href="/"><img src="/static/favicon.svg" alt="" width="24" height="24"><span>CS:TV</span></a>
+  <nav class="nav"><a href="/" data-nav="home">Lobbies</a><a href="/link" data-nav="link">Connect game</a><a href="/admin" data-nav="admin" id="navAdmin" hidden>Admin</a></nav>
+  <div class="lobby-head" id="lobbyHead" hidden>
+    <span class="lobby-name" id="lobbyName"></span>
+    <button class="code-chip" id="codeBtn" title="Copy the lobby code"><span id="codeText"></span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
+  </div>
+  <div class="me" id="me"></div>
+</div></header>
+<main id="view"><div class="loading">Connecting…</div></main>
+<div class="toast" id="toast" role="status" hidden></div>
+<div class="modal-back" id="modal" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
