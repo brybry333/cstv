@@ -1,8 +1,4 @@
 cstv/third_party/source-sdk-2013/
-cstv/win/deps
-cstv/win/friend-dlls
-cstv/win/build/
-cstv/win/dist/
 cstv/helper/cstvd
 node_modules/
 __pycache__/

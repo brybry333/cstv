@@ -2,9 +2,10 @@
 
 In-game video screens for Counter-Strike: Source (64-bit). Place a screen with `!tv`, play YouTube, Twitch or
 most yt-dlp sites on it with `!link <url>`, and everyone in the same room who runs the mod watches in sync.
-It needs no server plugin. Video is streamed, nothing is saved to disk.
+It works on any CS:S server, and the server doesn't need anything installed. Video is streamed, nothing is saved
+to disk. Linux only for now.
 
-**License: none yet.** All rights are reserved until the authors agree on one.
+Licensed under GPL-3.0, see `LICENSE`.
 
 ## Authors
 
@@ -20,9 +21,7 @@ The original plugin version and the cstv.xyz hub are by brybry333. The client-on
 | `cstv/common/` | Shared-memory layouts and the line protocol used by the client and helper. |
 | `cstv/assets/` | Materials and fonts that go in `cstrike/custom/cstv`. |
 | `cstv/tools/` | Debug tools, plus `mcassets.py` for the Progress Log's book (see below). |
-| `cstv/win/` | Windows build scripts. Not rebuilt since the later client changes. |
 | `hub/` | The cstv.xyz server and website. `hub/deploy/` has the setup scripts. |
-| `integrations/bhoptools/` | `cstv.patch`, which builds CS:TV into bhoptools. |
 | `notes/PROTOCOL.md` | The wire protocols. |
 | `server-plugin/` | The old SourceMod plugin, for reference only. The client doesn't use it. |
 | `systemd/` | Socket-activated user units for the helper. |
@@ -41,14 +40,17 @@ Make can't handle spaces in paths, so clone somewhere without any.
    Python 3 with Pillow, and Noto Sans.
 3. Client, on its own: `make` in `cstv/client/` builds `libcstv.so`, which is loaded with `LD_PRELOAD`.
 
-## Building into bhoptools
+## Running
 
-`integrations/bhoptools/cstv.patch` is made against bhoptools commit `aec9a0e` (2026-10-13). It does not apply
-to newer versions as it stands. With it applied, run this in `client/linux/`:
+Copy the materials with `make install` in `cstv/client/`, then set Steam's launch options for CS:S to:
 
 ```
-make CSTV_DIR=/path/to/this/repo/cstv
+/path/to/repo/cstv/cstv-launch %command% -insecure
 ```
+
+CS:TV hooks the game process, so only use it with `-insecure` and never on VAC-secured servers.
+
+Everyone connects through the hub at cstv.xyz by default. To use your own hub, set `CSTV_HUB_URL=wss://your-host/game`.
 
 ## Progress Log
 

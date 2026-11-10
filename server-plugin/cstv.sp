@@ -25,8 +25,7 @@
 // be live and has chat; the client hides it otherwise).
 //   look at the screen and press +attack or +use to pause / resume (for everyone)
 //
-// Only players running the CS:TV client mod (Linux: built into rawinput2; Windows: the CS:TV RawInput2
-// launcher) see the video; everyone else sees the placeholder image. This plugin is plain SourcePawn
+// Only players running the CS:TV client mod see the video; everyone else sees the placeholder image. This plugin is plain SourcePawn
 // (no gamedata, no offsets), so the server itself can run on Linux or Windows. The server is the source of truth: it sends the screen position, the
 // link (base64url, in <=180-char pieces) and play/pause/position/speed to modded clients as reliable
 // VGUIMenu user messages named "cstv"; the client mod swallows them. Clients announce themselves

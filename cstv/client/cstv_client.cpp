@@ -3,9 +3,7 @@
 // for the helper (cstvd), and follows what cstvd forwards from the master server (screen, link, clock).
 // No server plugin: it works on any server.
 //
-// Loads into cstrike_linux64 via LD_PRELOAD (cstv-launch), or is built into bhoptools' preload (make
-// CSTV_DIR=..., -DCSTV_EMBEDDED, see cstv_embed.h: its Fixes tab / F9 turn CS:TV off and on); Windows: a DLL
-// that bhoptools.exe loads (cstv_platform_win.cpp). CSTV_DISABLE=1 keeps it out. A thread waits for the
+// Loads into cstrike_linux64 via LD_PRELOAD (cstv-launch). CSTV_DISABLE=1 keeps it out. A thread waits for the
 // game's modules, then swaps vtable slots (every hook calls the original):
 //   IBaseClientDLL (VClient017, client.so)
 //      6 LevelInitPostEntity  create the textures, find our materials
@@ -79,9 +77,8 @@
 #include "cstv_gui.h"
 #include "cstv_place.h"
 #include "cstv_platform.h"
-#include "cstv_embed.h"
 
-#define CSTV_CLIENT_VERSION 3   // 3: cstv.xyz (sign-in, lobby chat), bhoptools embedding, Windows
+#define CSTV_CLIENT_VERSION 3   // 3: cstv.xyz (sign-in, lobby chat)
 
 // ---------------------------------------------------------------- utilities
 typedef void (*ConMsg_t)(const char *fmt, ...);
@@ -190,7 +187,7 @@ static Vector unit(const Vector &v)
     return l > 1e-6f ? v * (1 / l) : Vector(0, 0, 0);
 }
 
-// On/off (bhoptools' Fixes tab, F9; cstv_set_enabled): off = no video, no screens, no window, no connection
+// On/off: off = no video, no screens, no window, no connection
 // to cstvd (which then quits by itself). main_tick applies a change on the main thread.
 static std::atomic<bool> g_on{true};
 
@@ -1218,10 +1215,6 @@ static bool run_command(const std::string &verb, const std::string &rest)
 {
     std::string arg = trim(rest);
     if (!is_command(verb, arg)) return false;
-    if (!g_on.load() && verb != "tvhelp") {
-        cstv_print("CS:TV is off: turn it on with F9 (or in bhoptools' Fixes tab).");
-        return true;
-    }
     if (verb == "tv") tv_cmd(arg);
     else if (verb == "link" || verb == "tvlink") link_cmd("link", arg);
     else if ((verb == "queue" || verb == "tvqueue") && !arg.empty()) link_cmd("queue", arg);
@@ -1349,7 +1342,7 @@ bool ConCommand::CanAutoComplete() { return false; }
 void ConCommand::Dispatch(const CCommand &command) { m_fnCommandCallback(command); }
 
 // The chat box sends "say <text>" / "say_team <text>" with IVEngineClient::ClientCmd_Unrestricted. Taking
-// our commands there works whoever owns the say command (bhoptools patches server.so's say; on a remote
+// our commands there works whoever owns the say command (another mod may patch server.so's say; on a remote
 // server the engine forwards that one without running it), so it's the main path; say_cb above covers
 // `say !tv` typed in the console.
 typedef void (*ClientCmdU_t)(IVEngineClient *, const char *);
@@ -1673,48 +1666,16 @@ static void *init_thread(void *)
     return nullptr;
 }
 
-static bool g_started;
-
-bool cstv_start()
+static bool cstv_start()
 {
     if (!plat_in_game() || plat_disabled()) return false;   // only inside the game itself
-    // Both the standalone libcstv.so and a bhoptools with CS:TV built in may be preloaded: the first one
-    // to start runs CS:TV, the other stays out (two copies would fight over the hooks and cstvd).
+    // two copies preloaded would fight over the hooks and cstvd: the first one to start runs CS:TV
     if (!plat_claim()) return false;
-    if (!plat_thread(init_thread)) return false;
-    g_started = true;
-    return true;
+    return plat_thread(init_thread);
 }
-
-bool cstv_start_now()
-{
-    if (!plat_in_game() || plat_disabled()) return false;
-    if (!plat_claim()) {   // the standalone libcstv.so is preloaded too and started first
-        g_ConMsg = (ConMsg_t)plat_conmsg();
-        say("another CS:TV client is already loaded (libcstv.so in LD_PRELOAD as well?); this one stays out");
-        return false;
-    }
-    g_started = true;
-    if (hook_once()) return plat_thread(gui_thread) || true;
-    if (g_hooked.load() == 2 || !plat_thread(init_thread)) { g_started = false; return false; }
-    return true;   // the game's interfaces aren't there yet: a thread keeps trying
-}
-
-bool cstv_toggle()
-{
-    bool on = !g_on.load();
-    g_on.store(on);
-    return on;
-}
-
-bool cstv_running() { return g_started; }
-void cstv_set_enabled(bool on) { g_on.store(on); }
-bool cstv_enabled() { return g_on.load(); }
 
 #ifndef _WIN32
-#ifndef CSTV_EMBEDDED
 __attribute__((constructor)) static void cstv_ctor() { cstv_start(); }
-#endif
 
 // ---------------------------------------------------------------- operating system (cstv_platform.h), Linux
 double plat_now()
