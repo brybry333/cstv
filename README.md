@@ -9,7 +9,7 @@ Licensed under GPL-3.0, see `LICENSE`.
 
 ## Authors
 
-The original plugin version and the cstv.xyz hub are by brybry333. The client-only rewrite is by daf
+CS:TV is by brybry333. The in-game window, place mode and stream capture started from code contributed by daf
 ([ddyfad](https://github.com/ddyfad)).
 
 ## What's where
