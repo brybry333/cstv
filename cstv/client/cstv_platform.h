@@ -1,6 +1,4 @@
-// What the CS:TV client needs from the operating system. Linux: implemented at the end of
-// cstv_client.cpp (as it always was). Windows: cstv_platform_win.cpp, a file of its own because
-// windows.h and the Source SDK headers don't mix.
+// What the CS:TV client needs from the operating system, implemented at the end of cstv_client.cpp.
 #pragma once
 #include <cstddef>
 #include <cstdint>

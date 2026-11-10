@@ -42,7 +42,7 @@ Make can't handle spaces in paths, so clone somewhere without any.
 
 ## Running
 
-Copy the materials with `make install` in `cstv/client/`, then set Steam's launch options for CS:S to:
+Set Steam's launch options for CS:S to the line below. It starts the helper, loads the mod and copies the materials.
 
 ```
 /path/to/repo/cstv/cstv-launch %command% -insecure
