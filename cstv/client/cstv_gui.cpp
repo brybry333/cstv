@@ -38,7 +38,10 @@
 #include <ctime>
 #include <string>
 #include <vector>
-#ifndef _WIN32
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#else
 #include <dlfcn.h>
 #include <strings.h>
 #endif
@@ -92,7 +95,12 @@ static void *g_prev_data;
 static bool load_sdl()
 {
 #ifdef _WIN32
-    return false;
+    // no SDL for the keyboard and mouse on Windows: plat_input_install; these do the same jobs
+    SDL_GetClipboardText_ = plat_clipboard_get;
+    SDL_SetClipboardText_ = plat_clipboard_set;
+    SDL_free_ = free;
+    SDL_GetScancodeFromName_ = plat_scancode_from_name;
+    return true;
 #else
     // The Steam runtime ships it as libSDL2-2.0.so.0; the game loads it privately, so find it by path.
     FILE *f = fopen("/proc/self/maps", "r");
@@ -495,6 +503,10 @@ static void close_window()
     g_open = false;
     g_focus = g_drag = 0;
     in = {};
+#ifdef _WIN32
+    plat_input_window(false);
+    if (g_engine) g_engine->ClientCmd_Unrestricted("cl_mouseenable 1");
+#endif
 }
 
 // Runs inside SDL_PumpEvents on the main thread, before the game sees the event. Key and button
@@ -594,6 +606,41 @@ static int gui_filter(void *, SdlEvent *e)
     }
     return g_prev_filter ? g_prev_filter(g_prev_data, e) : 1;
 }
+
+#ifdef _WIN32
+// The game window's messages (cstv_platform_win.cpp) as the SDL events the code above works with.
+static int win_event(const plat_event *p)
+{
+    SdlEvent e = {};
+    switch (p->type) {
+    case PLAT_KEYDOWN:
+        e.type = EV_KEYDOWN;
+        e.key.scancode = p->scancode;
+        e.key.repeat = (uint8_t)p->repeat;
+        e.key.mod = p->ctrl ? KMOD_CTRL : 0;
+        break;
+    case PLAT_TEXT:
+        e.type = p->text[0] ? EV_TEXTINPUT : EV_TEXTEDITING;   // control characters: kept from the game, typed nowhere
+        memcpy(e.text.text, p->text, sizeof p->text);
+        break;
+    case PLAT_MOTION:
+        e.type = EV_MOUSEMOTION;
+        e.motion.xrel = p->dx;
+        e.motion.yrel = p->dy;
+        break;
+    case PLAT_BUTTONDOWN:
+    case PLAT_BUTTONUP:
+        e.type = p->type == PLAT_BUTTONDOWN ? EV_MOUSEDOWN : EV_MOUSEUP;
+        e.button.button = (uint8_t)p->button;
+        break;
+    case PLAT_WHEEL:
+        e.type = EV_MOUSEWHEEL;
+        e.wheel.y = p->wheel;
+        break;
+    }
+    return gui_filter(nullptr, &e);
+}
+#endif
 
 // Source key names (inputsystem's ButtonCodeToString) that SDL spells differently.
 static void find_toggle_key()
@@ -2289,6 +2336,9 @@ static bool layout(int &sw, int &sh)
 static void hk_paint(void *self, VPANEL panel, bool force, bool allow)
 {
     g_orig_paint(self, panel, force, allow);
+#ifdef _WIN32
+    plat_input_install(win_event);
+#endif
     if (!g_top) {
         const char *name = g_panel->GetName(panel);
         if (name && !strcmp(name, "MatSystemTopPanel")) g_top = panel;
@@ -2322,10 +2372,17 @@ bool gui_install()
     g_panel = (vgui::IPanel *)plat_interface("vgui2", VGUI_PANEL_INTERFACE_VERSION);
     g_engine = (IVEngineClient *)plat_interface("engine", VENGINE_CLIENT_INTERFACE_VERSION);
     if (!g_surf || !g_panel || !load_sdl()) return false;
-    g_orig_paint = (PaintTraverse_t)plat_swap_slot(g_panel, 42, (void *)hk_paint);
+#ifdef _WIN32
+    const int paint_traverse = 41;   // IPanel has a virtual destructor: one slot on MSVC, two on GCC
+#else
+    const int paint_traverse = 42;
+#endif
+    g_orig_paint = (PaintTraverse_t)plat_swap_slot(g_panel, paint_traverse, (void *)hk_paint);
     if (!g_orig_paint) return false;
+#ifndef _WIN32
     SDL_GetEventFilter_(&g_prev_filter, &g_prev_data);
     SDL_SetEventFilter_(gui_filter, nullptr);
+#endif
     g_installed = true;
     return true;
 }
@@ -2395,5 +2452,9 @@ static void open_window()
     find_toggle_key();
     if (g_engine && g_engine->Con_IsVisible()) g_engine->ClientCmd_Unrestricted("hideconsole");   // typed `cstv` in it
     if (SDL_StartTextInput_) SDL_StartTextInput_();
+#ifdef _WIN32
+    plat_input_window(true);
+    if (g_engine) g_engine->ClientCmd_Unrestricted("cl_mouseenable 0");   // the view doesn't turn while the window is up
+#endif
     g_open = true;
 }

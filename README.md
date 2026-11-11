@@ -3,7 +3,9 @@
 In-game video screens for Counter-Strike: Source (64-bit). Place a screen with `!tv`, play YouTube, Twitch or
 most yt-dlp sites on it with `!link <url>`, and everyone in the same room who runs the mod watches in sync.
 It works on any CS:S server, and the server doesn't need anything installed. Video is streamed, nothing is saved
-to disk. Linux only for now.
+to disk. Runs on 64-bit Linux and 64-bit Windows. Press F7 in game to open the window.
+
+Downloads are on the [releases page](https://github.com/brybry333/cstv/releases).
 
 Licensed under GPL-3.0, see `LICENSE`.
 
@@ -21,6 +23,7 @@ CS:TV is by brybry333. The in-game window, place mode and stream capture started
 | `cstv/common/` | Shared-memory layouts and the line protocol used by the client and helper. |
 | `cstv/assets/` | Materials and fonts that go in `cstrike/custom/cstv`. |
 | `cstv/tools/` | Debug tools, plus `mcassets.py` for the Progress Log's book (see below). |
+| `cstv/win/` | The Windows build: `CSTV.exe` launcher, build and packaging scripts. |
 | `hub/` | The cstv.xyz server and website. `hub/deploy/` has the setup scripts. |
 | `notes/PROTOCOL.md` | The wire protocols. |
 | `server-plugin/` | The old SourceMod plugin, for reference only. The client doesn't use it. |
@@ -51,6 +54,19 @@ Set Steam's launch options for CS:S to the line below. It starts the helper, loa
 CS:TV hooks the game process, so only use it with `-insecure` and never on VAC-secured servers.
 
 Everyone connects through the hub at cstv.xyz by default. To use your own hub, set `CSTV_HUB_URL=wss://your-host/game`.
+
+## Windows
+
+Run `CSTV.exe` from the Windows zip. It starts CS:S with `-insecure` and loads CS:TV, and your Steam launch options
+still apply. Only the "Start stream" button is missing on Windows. Watching streams works.
+
+To build it (cross-compiled on Linux), get the Source SDK headers as above, then in `cstv/win/`:
+
+```
+./fetch-deps.sh && ./build.sh && ./make-zip.sh
+```
+
+This needs clang, lld, mingw-w64-gcc and an [xwin](https://github.com/Jake-Shadle/xwin) splat in `~/.local/share/xwin`.
 
 ## Progress Log
 

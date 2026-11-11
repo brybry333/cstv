@@ -1,5 +1,8 @@
 cstv/third_party/source-sdk-2013/
 cstv/helper/cstvd
+cstv/win/deps
+cstv/win/build/
+cstv/win/dist/
 node_modules/
 __pycache__/
 hub/browsertest/results*/
@@ -11,3 +14,4 @@ hub/browsertest/results*/
 *.db
 *.sq3
 HANDOFF.md
+cstv/dist/

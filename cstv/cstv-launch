@@ -60,13 +60,14 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 # ---- the client mod's materials: drawn client-side, so every player needs them
-assets=$DIR/assets/materials/cstv
 for a in "${args[@]}"; do
     [[ $a == */cstrike.sh || $a == */cstrike_linux64 || $a == */hl2.sh ]] || continue
-    dest=$(dirname "$a")/cstrike/custom/cstv/materials/cstv
-    for f in "$assets"/*; do
-        cmp -s "$f" "$dest/${f##*/}" && continue
-        mkdir -p "$dest" && cp "$f" "$dest/" || say "could not install ${f##*/} into $dest"
+    for sub in materials/cstv resource/cstv; do
+        dest=$(dirname "$a")/cstrike/custom/cstv/$sub
+        for f in "$DIR/assets/$sub"/*; do
+            cmp -s "$f" "$dest/${f##*/}" && continue
+            mkdir -p "$dest" && cp "$f" "$dest/" || say "could not install ${f##*/} into $dest"
+        done
     done
     break
 done

@@ -3,7 +3,8 @@
 // for the helper (cstvd), and follows what cstvd forwards from the master server (screen, link, clock).
 // No server plugin: it works on any server.
 //
-// Loads into cstrike_linux64 via LD_PRELOAD (cstv-launch). CSTV_DISABLE=1 keeps it out. A thread waits for the
+// Loads into cstrike_linux64 via LD_PRELOAD (cstv-launch); on Windows, CSTV.exe loads it into cstrike_win64.exe
+// as cstv_client.dll (cstv_platform_win.cpp). CSTV_DISABLE=1 keeps it out. A thread waits for the
 // game's modules, then swaps vtable slots (every hook calls the original):
 //   IBaseClientDLL (VClient017, client.so)
 //      6 LevelInitPostEntity  create the textures, find our materials
@@ -44,6 +45,10 @@
 #include <string>
 #include <vector>
 #include <cctype>
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#else
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -53,6 +58,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+#endif
 
 #include "materialsystem/imaterialsystem.h"
 #include "materialsystem/imaterial.h"
@@ -1542,9 +1548,24 @@ static IN_KeyEvent_t o_IN_KeyEvent;
 static FrameStageNotify_t o_FrameStageNotify;
 static SceneEnd_t o_SceneEnd;
 
+// F7 opens the window, unless the player has a key for it already or uses F7 for something else. `load quick`
+// is F7's stock bind and does nothing in CS:S. Here and not earlier: config.cfg has to be loaded first.
+static void default_bind()
+{
+    static bool done;
+    if (done) return;
+    done = true;
+    const char *key = g_engine->Key_LookupBinding("cstv");
+    if (key && *key) return;
+    const char *f7 = g_engine->Key_BindingForKey(KEY_F7);
+    if (f7 && *f7 && strcasecmp(f7, "load quick")) return;
+    g_engine->ClientCmd_Unrestricted("bind F7 cstv");
+}
+
 static void h_LevelInitPostEntity(IBaseClientDLL *self)
 {
     o_LevelInitPostEntity(self);
+    default_bind();
     ensure_texture();
     if (!g_screen_mat) g_screen_mat = find_material("cstv/screen");
     if (!g_chat_mat) g_chat_mat = find_material("cstv/chat");
@@ -1822,3 +1843,11 @@ bool plat_claim()
     return true;
 }
 #endif   // !_WIN32
+
+#ifdef _WIN32
+extern "C" int __stdcall DllMain(void *, unsigned long reason, void *)
+{
+    if (reason == 1) cstv_start();   // DLL_PROCESS_ATTACH: starts a thread, which runs once the loader is done
+    return 1;
+}
+#endif

@@ -2628,12 +2628,17 @@ static void stream_go(const char *url);
 // The renderer's answers to the Lobby page's pickers: pick <name>, gifpick <id>, gifmore <query> <offset>.
 static void overlay_poll(void)
 {
-#ifndef _WIN32
     static char buf[4096];
     static size_t len;
     if (overlay_out < 0) return;
     ssize_t r;
+#ifdef _WIN32
+    DWORD avail;   // a pipe read would block: only read what's there
+    while (PeekNamedPipe((HANDLE)_get_osfhandle(overlay_out), NULL, 0, NULL, &avail, NULL) && avail
+           && (r = read(overlay_out, buf + len, avail < sizeof buf - 1 - len ? avail : sizeof buf - 1 - len)) > 0) {
+#else
     while ((r = read(overlay_out, buf + len, sizeof buf - 1 - len)) > 0) {
+#endif
         len += (size_t)r;
         buf[len] = 0;
         char *nl;
@@ -2653,7 +2658,6 @@ static void overlay_poll(void)
         }
         if (len >= sizeof buf - 1) len = 0;   // a line too long for us: drop it
     }
-#endif
 }
 
 static void master_line(char *line)

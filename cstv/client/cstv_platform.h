@@ -1,4 +1,5 @@
-// What the CS:TV client needs from the operating system, implemented at the end of cstv_client.cpp.
+// What the CS:TV client needs from the operating system. Linux: implemented at the end of cstv_client.cpp.
+// Windows: cstv_platform_win.cpp, a file of its own because windows.h and the Source SDK headers don't mix.
 #pragma once
 #include <cstddef>
 #include <cstdint>
@@ -28,3 +29,16 @@ bool plat_claim();                                          // the first CS:TV c
 void plat_spawn_helper();                                   // cstvd isn't answering: start it (Windows; Linux: systemd does)
 bool plat_thread(void *(*fn)(void *));
 void plat_sleep_ms(int ms);
+
+#ifdef _WIN32
+// The game's window is plain Win32 on Windows (SDL only handles controllers there), so its messages are
+// translated into these. Return 0 from the callback to keep a message from the game.
+enum { PLAT_KEYDOWN, PLAT_TEXT, PLAT_MOTION, PLAT_BUTTONDOWN, PLAT_BUTTONUP, PLAT_WHEEL };
+struct plat_event { int type, scancode, repeat, ctrl, button, dx, dy, wheel; char text[8]; };
+typedef int (*plat_event_fn)(const plat_event *);
+bool plat_input_install(plat_event_fn fn);                  // on the main thread; cheap to call every frame
+void plat_input_window(bool open);                          // the CS:TV window opened or closed
+char *plat_clipboard_get();                                 // malloc'd UTF-8, or null
+int plat_clipboard_set(const char *utf8);
+int plat_scancode_from_name(const char *name);              // an SDL scancode for a Source key name, or 0
+#endif
