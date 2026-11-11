@@ -1551,7 +1551,7 @@ static IN_KeyEvent_t o_IN_KeyEvent;
 static FrameStageNotify_t o_FrameStageNotify;
 static SceneEnd_t o_SceneEnd;
 
-// F7 opens the window and F8 the Progress Log, unless the player has a key for them already or uses those keys for
+// F7 opens the window and F9 the Progress Log, unless the player has a key for them already or uses those keys for
 // something else. `load quick` is F7's stock bind and does nothing in CS:S. Here and not earlier: config.cfg has to
 // be loaded first.
 static void default_bind_one(const char *cmd, ButtonCode_t code, const char *line)
@@ -1568,8 +1568,15 @@ static void default_bind()
     static bool done;
     if (done) return;
     done = true;
+    // 1.0.1 put the Progress Log on F8, which bhoptools uses to turn its prediction on and off: move that bind to F9
+    // if F9 is free. The commands run later, so default_bind_one below still sees F8 and leaves it.
+    const char *f8 = g_engine->Key_BindingForKey(KEY_F8), *f9 = g_engine->Key_BindingForKey(KEY_F9);
+    if (f8 && !strcasecmp(f8, "cstv_book") && !(f9 && *f9)) {
+        g_engine->ClientCmd_Unrestricted("unbind F8");
+        g_engine->ClientCmd_Unrestricted("bind F9 cstv_book");
+    }
     default_bind_one("cstv", KEY_F7, "bind F7 cstv");
-    default_bind_one("cstv_book", KEY_F8, "bind F8 cstv_book");
+    default_bind_one("cstv_book", KEY_F9, "bind F9 cstv_book");
 }
 
 static void h_LevelInitPostEntity(IBaseClientDLL *self)

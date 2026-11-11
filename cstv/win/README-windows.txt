@@ -14,8 +14,8 @@ USING IT
   1. Open Steam and close CS:S if it's running.
   2. Run CSTV.exe. It starts the game with -insecure and loads CS:TV. Your Steam launch options still apply.
   3. In game, press F7 to open the window, or type !tvhelp in chat for the commands.
-     F8 opens the Progress Log on servers with its plugin. Esc, F7 or F8 close either one.
-     If F7 or F8 is already bound to something of yours, CS:TV leaves it alone. Use: bind <key> cstv (or cstv_book)
+     F9 opens the Progress Log on servers with its plugin. Esc, F7 or F9 close either one.
+     If F7 or F9 is already bound to something of yours, CS:TV leaves it alone. Use: bind <key> cstv (or cstv_book)
 
 ONLY join servers that allow -insecure. CS:TV hooks the game, so never use it on VAC-secured servers.
 
