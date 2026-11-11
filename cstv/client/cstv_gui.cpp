@@ -476,6 +476,7 @@ static bool prog_esc();       // the Progress Log takes Esc (closes its Yes / No
 static bool g_hud_edit;       // the window shows only the HUD screen, to be dragged and resized
 static int g_toggle_scan;     // SDL scancode of the key bound to `cstv`, or 0
 static int g_toggle_button;   // SDL mouse button bound to it, or 0
+static int g_book_scan, g_book_button;   // the same for `cstv_book`
 static int g_focus, g_drag;
 static int g_mx, g_my;
 static float g_vx = -1, g_vy;   // our cursor; -1 = put it in the middle on the next draw
@@ -517,7 +518,7 @@ static int handle_event(SdlEvent *e)
     case EV_KEYDOWN: {
         int sc = e->key.scancode;
         if (sc == SC_ESCAPE && g_mode == MODE_PROG && !e->key.repeat && prog_esc()) return 0;
-        if (sc == SC_ESCAPE || (!e->key.repeat && g_toggle_scan && sc == g_toggle_scan)) {
+        if (sc == SC_ESCAPE || (!e->key.repeat && ((g_toggle_scan && sc == g_toggle_scan) || (g_book_scan && sc == g_book_scan)))) {
             if (e->key.repeat || !st.warning.empty()) return 0;
             if (g_hud_edit && sc == SC_ESCAPE) end_hud_edit();   // back to the window
             else close_window();
@@ -550,7 +551,7 @@ static int handle_event(SdlEvent *e)
         g_vy += e->motion.yrel;
         return 0;
     case EV_MOUSEDOWN:
-        if (g_toggle_button && e->button.button == g_toggle_button) { if (st.warning.empty()) close_window(); return 0; }
+        if ((g_toggle_button && e->button.button == g_toggle_button) || (g_book_button && e->button.button == g_book_button)) { if (st.warning.empty()) close_window(); return 0; }
         if (e->button.button == 1) { in.down = true; in.click = true; }
         return 0;
     case EV_MOUSEUP:
@@ -643,14 +644,14 @@ static int win_event(const plat_event *p)
 #endif
 
 // Source key names (inputsystem's ButtonCodeToString) that SDL spells differently.
-static void find_toggle_key()
+static void find_key(const char *cmd, int &scan, int &button)
 {
-    g_toggle_scan = g_toggle_button = 0;
-    const char *name = g_engine ? g_engine->Key_LookupBinding("cstv") : nullptr;
+    scan = button = 0;
+    const char *name = g_engine ? g_engine->Key_LookupBinding(cmd) : nullptr;
     if (!name || !*name) return;
-    if (!strcasecmp(name, "MOUSE3")) { g_toggle_button = 2; return; }
-    if (!strcasecmp(name, "MOUSE4")) { g_toggle_button = 4; return; }
-    if (!strcasecmp(name, "MOUSE5")) { g_toggle_button = 5; return; }
+    if (!strcasecmp(name, "MOUSE3")) { button = 2; return; }
+    if (!strcasecmp(name, "MOUSE4")) { button = 4; return; }
+    if (!strcasecmp(name, "MOUSE5")) { button = 5; return; }
     static const char *const map[][2] = {
         {"INS", "Insert"}, {"DEL", "Delete"}, {"PGUP", "PageUp"}, {"PGDN", "PageDown"},
         {"UPARROW", "Up"}, {"DOWNARROW", "Down"}, {"LEFTARROW", "Left"}, {"RIGHTARROW", "Right"},
@@ -658,7 +659,13 @@ static void find_toggle_key()
     };
     for (auto &m : map)
         if (!strcasecmp(name, m[0])) name = m[1];
-    if (SDL_GetScancodeFromName_) g_toggle_scan = SDL_GetScancodeFromName_(name);
+    if (SDL_GetScancodeFromName_) scan = SDL_GetScancodeFromName_(name);
+}
+
+static void find_toggle_key()
+{
+    find_key("cstv", g_toggle_scan, g_toggle_button);
+    find_key("cstv_book", g_book_scan, g_book_button);
 }
 
 // ---------------------------------------------------------------- drawing primitives

@@ -71,5 +71,5 @@ This needs clang, lld, mingw-w64-gcc and an [xwin](https://github.com/Jake-Shadl
 ## Progress Log
 
 `cstv/client/cstv_prog.inc` is the Progress Log's Minecraft-book window, currently built as part of this client.
-Its art, fonts and sounds are Mojang's, so they aren't in this repo. `cstv/tools/mcassets.py` makes them from
+Press F8 to open it on servers with its plugin. Its art, fonts and sounds are Mojang's, so they aren't in this repo. `cstv/tools/mcassets.py` makes them from
 your own copy of Minecraft. Without them the window draws a plain book.

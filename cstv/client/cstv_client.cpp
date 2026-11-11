@@ -1370,6 +1370,8 @@ static void prog_cb(const CCommand &args)
     for (int i = 0; i < args.ArgC(); i++) v.push_back(args[i]);
     gui_prog_cmd((int)v.size(), v.data());
 }
+static void book_cb(const CCommand &) { gui_prog_toggle(); }
+static ConCommand g_cmd_book("cstv_book", book_cb, "Open or close the Progress Log");
 static ConCommand g_cmd_prog("prog_ui", prog_cb, "Progress Log window (the server's progresslog plugin drives it; !prog)", FCVAR_SERVER_CAN_EXECUTE);
 static ConCommandBase *g_say_orig[2];   // server.so's say / say_team
 static ConCommand *const g_say_ours[2] = {&g_cmd_say, &g_cmd_say_team};
@@ -1380,6 +1382,7 @@ static void register_commands()
     g_cmds_done = true;
     g_dll_id = g_cvar->AllocateDLLIdentifier();
     g_cvar->RegisterConCommand(&g_cmd_cstv);
+    g_cvar->RegisterConCommand(&g_cmd_book);
     g_cvar->RegisterConCommand(&g_cmd_prog);
     for (int i = 0; i < 2; i++) {
         ConCommandBase *c = g_cvar->FindCommandBase(g_say_ours[i]->GetName());
@@ -1548,18 +1551,25 @@ static IN_KeyEvent_t o_IN_KeyEvent;
 static FrameStageNotify_t o_FrameStageNotify;
 static SceneEnd_t o_SceneEnd;
 
-// F7 opens the window, unless the player has a key for it already or uses F7 for something else. `load quick`
-// is F7's stock bind and does nothing in CS:S. Here and not earlier: config.cfg has to be loaded first.
+// F7 opens the window and F8 the Progress Log, unless the player has a key for them already or uses those keys for
+// something else. `load quick` is F7's stock bind and does nothing in CS:S. Here and not earlier: config.cfg has to
+// be loaded first.
+static void default_bind_one(const char *cmd, ButtonCode_t code, const char *line)
+{
+    const char *key = g_engine->Key_LookupBinding(cmd);
+    if (key && *key) return;
+    const char *now = g_engine->Key_BindingForKey(code);
+    if (now && *now && strcasecmp(now, "load quick")) return;
+    g_engine->ClientCmd_Unrestricted(line);
+}
+
 static void default_bind()
 {
     static bool done;
     if (done) return;
     done = true;
-    const char *key = g_engine->Key_LookupBinding("cstv");
-    if (key && *key) return;
-    const char *f7 = g_engine->Key_BindingForKey(KEY_F7);
-    if (f7 && *f7 && strcasecmp(f7, "load quick")) return;
-    g_engine->ClientCmd_Unrestricted("bind F7 cstv");
+    default_bind_one("cstv", KEY_F7, "bind F7 cstv");
+    default_bind_one("cstv_book", KEY_F8, "bind F8 cstv_book");
 }
 
 static void h_LevelInitPostEntity(IBaseClientDLL *self)
@@ -1583,6 +1593,7 @@ static void h_LevelShutdown(IBaseClientDLL *self)
     g_loc.clear();
     g_place.on = false;
     g_place_wait = 0;
+    gui_prog_level_end();
     g_where_sent.clear();   // even back on the same server + map: the master then sends the screen and link again
     o_LevelShutdown(self);
 }

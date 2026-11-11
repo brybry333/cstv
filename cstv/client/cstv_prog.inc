@@ -303,6 +303,7 @@ static std::vector<const PEntry *> p_day_entries(const std::string &day)   // ""
 
 // ---- from the server
 void gui_prog_open();
+static bool g_prog_server;   // this server runs the Progress Log plugin
 static void p_view(int v, bool sound = true);
 static void p_focus(int id);
 static void p_ask(const std::string &title, const std::string &sub, std::function<void()> yes);
@@ -315,6 +316,7 @@ void gui_prog_cmd(int argc, const char *const *argv)
     auto F = [&](int i) { return i < argc ? (float)atof(argv[i]) : -1.0f; };
     auto I = [&](int i) { return i < argc ? atoi(argv[i]) : 0; };
     auto A = [&](int i) { return std::string(i < argc ? argv[i] : ""); };
+    g_prog_server = true;   // only the plugin sends these
     if (v == "hello") p_send("sm_progui hello 2");
     else if (v == "reset" && argc >= 7) {
         pg.map = A(2); pg.today = A(3); pg.daystart = I(4); pg.autofinish = I(5) != 0; pg.saveat_here = I(6) != 0;
@@ -383,6 +385,15 @@ void gui_prog_open()
 }
 
 static void prog_on_close() { p_send("sm_progui view 0"); g_focus = 0; }
+
+void gui_prog_toggle()
+{
+    if (g_open && g_mode == MODE_PROG) { close_window(); return; }
+    if (!g_prog_server) { cstv_print("This server doesn't have the Progress Log."); return; }
+    gui_prog_open();
+}
+
+void gui_prog_level_end() { g_prog_server = false; }
 
 // ---------------------------------------------------------------- Minecraft's pictures
 // progbook.bin (mcassets.py): "PBK1", a count, then (name[32], u16 w, u16 h, u32 offset) each, then RGBA pixels
