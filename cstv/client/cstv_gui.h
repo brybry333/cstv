@@ -16,7 +16,7 @@ void gui_hud_toggle();                    // !tv hud / `cstv hud`
 const char *gui_shared_audience();        // who sees the shared screen here, e.g. "lobby K7Q2MX (3 players here)"
 bool gui_in_lobby();                      // the hub says we're in a lobby (for !leave)
 // The Progress Log (cstv_prog.inc): the same window with its own pages, fed by the server's progresslog plugin
-void gui_prog_cmd(int argc, const char *const *argv);   // `prog_ui ...` from the server (or the console)
+void gui_prog_cmd(int argc, const char *const *argv, bool test);   // `prog_ui ...` from the server; test = `prog_ui_test`
 void gui_prog_open();
 void gui_prog_toggle();                     // `cstv_book`: opens it where the server has the plugin, closes it if open
 void gui_prog_level_end();                  // left the map: the next server has to say it has the plugin

@@ -144,9 +144,7 @@ static void install_assets(const wchar_t *here, const wchar_t *game)
         wchar_t src[BIG], dst[BIG], dir[BIG];
         swprintf(src, BIG, L"%ls\\cstv\\%ls", here, files[i]);
         swprintf(dst, BIG, L"%ls\\cstrike\\custom\\cstv\\%ls", game, files[i]);
-        WIN32_FILE_ATTRIBUTE_DATA a, b;
-        if (!GetFileAttributesExW(src, GetFileExInfoStandard, &a)) continue;
-        if (GetFileAttributesExW(dst, GetFileExInfoStandard, &b) && a.nFileSizeLow == b.nFileSizeLow) continue;
+        if (GetFileAttributesW(src) == INVALID_FILE_ATTRIBUTES) continue;   // always copied: a redrawn texture keeps its size
         wcscpy(dir, dst);
         *wcsrchr(dir, L'\\') = 0;
         make_dirs(dir);

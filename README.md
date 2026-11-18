@@ -26,7 +26,6 @@ CS:TV is by brybry333. The in-game window, place mode and stream capture started
 | `cstv/win/` | The Windows build: `CSTV.exe` launcher, build and packaging scripts. |
 | `hub/` | The cstv.xyz server and website. `hub/deploy/` has the setup scripts. |
 | `notes/PROTOCOL.md` | The wire protocols. |
-| `server-plugin/` | The old SourceMod plugin, for reference only. The client doesn't use it. |
 | `systemd/` | Socket-activated user units for the helper. |
 
 ## Building (Linux)

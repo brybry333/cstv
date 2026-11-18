@@ -7,7 +7,7 @@ anything installed.
 
 BEFORE YOU START
   Install mpv (libmpv), yt-dlp, streamlink, Python 3 with Pillow, and the Noto Sans fonts.
-  Your system needs glibc 2.34 or newer (Ubuntu 22.04, Debian 12, or anything more recent).
+  Your system needs glibc 2.34, libmpv.so.2 and Pillow 9.1 or newer (Ubuntu 24.04, Debian 12, or anything newer).
 
 USING IT
   1. Unzip this folder somewhere permanent.

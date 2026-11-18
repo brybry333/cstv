@@ -18,7 +18,7 @@ x86_64-w64-mingw32-gcc -O2 -Wall -municode -mwindows -o "$OUT/CSTV.exe" "$W/laun
 # x86-64-v2 = any 64-bit CPU since ~2009; the encoder picks its AVX2 copy at runtime
 x86_64-w64-mingw32-gcc -O3 -march=x86-64-v2 -ffile-prefix-map="$C"=. -Wall -Wextra -Wno-unused-parameter -D_WIN32_WINNT=0x0A00 \
     -I"$C/common" -I"$C/third_party/stb" -I"$B/mpv-dev/include" -o "$OUT/cstvd.exe" "$C/helper/cstvd.c" \
-    "$B/mpv-dev/libmpv.dll.a" -lws2_32 -static -lpthread -lm 2>&1 | grep -v stb_truetype || true
+    "$B/mpv-dev/libmpv.dll.a" -lws2_32 -static -lpthread -lm 2>&1 | { grep -v stb_truetype || true; }   # gcc failing still stops the build
 x86_64-w64-mingw32-gcc -O2 -Wall -municode -o "$OUT/cstv_ytdl.exe" "$C/helper/cstv_ytdl_win.c" -static
 
 echo "== cstv_client.dll"

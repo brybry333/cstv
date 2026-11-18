@@ -105,7 +105,7 @@ def is_site_admin(steamid):
 
 log = logging.getLogger("cstv-hub")
 
-# The plugin's permission bits (cstv.sp), same meaning, same order.
+# The permission bits (as in the old SourceMod plugin), same meaning, same order.
 PERM_LINK, PERM_QUEUE, PERM_SKIP, PERM_PAUSE, PERM_SEEK, PERM_PLAYBACK, PERM_SCREEN = (1 << i for i in range(7))
 PERM_ALL = (1 << 7) - 1
 ADMIN = 1 << 7    # may change permissions, kick, ban, mute, lobby settings
@@ -198,14 +198,14 @@ def link_kind(u):
     lu = (u or "").lower()
     if lu.startswith("rtmp://"):
         return "stream"   # only the hub sets these (url_ok refuses rtmp)
-    if "youtube.com/" in lu or "youtu.be/" in lu:
+    site = site_of(lu)   # by host name: "evil.example/youtube.com/..." is not YouTube
+    if site == "youtube":
         return "youtube"
-    i = lu.find("twitch.tv/")
-    if i != -1:
-        rest = lu[i + 10:]
+    if site == "twitch":
+        rest = urllib.parse.urlsplit(lu).path.strip("/")
         if not rest:
             return "other"
-        return "twitch_vod" if rest.startswith("videos/") or "/" in rest else "twitch_live"
+        return "twitch_vod" if "/" in rest else "twitch_live"
     return "other"
 
 
@@ -262,7 +262,10 @@ TW_HOSTS = ("twitch.tv", "www.twitch.tv", "m.twitch.tv")
 
 
 def site_of(u):
-    h = (urllib.parse.urlsplit(u).hostname or "").lower()
+    try:
+        h = (urllib.parse.urlsplit(u).hostname or "").lower()
+    except ValueError:
+        return "other"
     if h in YT_HOSTS:
         return "youtube"
     if h in TW_HOSTS:
@@ -311,8 +314,9 @@ class DB:
                 self.c.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {decl}")
             except sqlite3.OperationalError:
                 pass   # added before
-        # lobbies from before "seen" get a full LOBBY_EXPIRE from now; visits still open were ended by a restart
-        self.c.execute("UPDATE lobbies SET seen=? WHERE seen IS NULL", (time.time(),))
+        # every lobby gets a full LOBBY_EXPIRE from now (time the hub was down doesn't count); visits still open
+        # were ended by a restart
+        self.c.execute("UPDATE lobbies SET seen=?", (time.time(),))
         self.c.execute("UPDATE visits SET until=at WHERE until IS NULL")
 
     def q(self, sql, *args):
@@ -692,6 +696,11 @@ class Room:
         if not self.perms_of(c) & perm:
             raise Denied(self.refusal(c, what))
 
+    def may_report(self, c):
+        """"ended" / "duration" end a video, so they count from someone who may skip -- or from anyone when no
+        viewer may (a lobby of guests still moves on)."""
+        return bool(self.perms_of(c) & PERM_SKIP) or not any(self.perms_of(o) & PERM_SKIP for o in self.conns if o.watching)
+
     def check_site(self, url):
         pass
 
@@ -987,7 +996,7 @@ class Room:
             self.to_webs(self.state_msg())
             self.dirty = True
         for q in self.queue:
-            if q["uid"] == uid and q["title"] != title:
+            if q["uid"] == uid and not q["title"]:   # only a missing title: anyone in the room can answer
                 q["title"] = title
                 self.send_queue()
 
@@ -1616,6 +1625,8 @@ def leave_room(c):
     r.send_roster()
     if not r.conns:
         r.empty_since = time.time()
+        if r.kind == "srv" and not (r.url or r.queue or r.history):
+            srv_rooms.pop(r.key, None)   # nothing to keep: else any made-up `where` would stay an hour
         if isinstance(r, Lobby):
             db.x("UPDATE lobbies SET seen=? WHERE code=?", r.empty_since, r.code)
 
@@ -2232,7 +2243,8 @@ def game_line(c, w):
         if verb == "started":
             r.on_started(int(a[0]))
         elif verb == "ended":
-            r.on_ended(int(a[0]), b64d(a[1]) if len(a) > 1 else "", b64d(a[2]) if len(a) > 2 else "")
+            if r.may_report(c):
+                r.on_ended(int(a[0]), b64d(a[1]) if len(a) > 1 else "", b64d(a[2]) if len(a) > 2 else "")
         elif verb == "title":
             r.on_title(int(a[0]), b64d(a[1]))
         elif verb in GAME_CMDS and c.spend():
@@ -2372,10 +2384,10 @@ def web_message(c, m):
         if lb:
             lb.on_started(m.get("rev"), m.get("seek"))
     elif t == "ended":
-        if lb:
+        if lb and lb.may_report(c):
             lb.on_ended(m.get("rev"))
     elif t == "duration":   # a viewer's player knows the length: the hub moves on at the end even if nobody watches
-        if lb and m.get("rev") == lb.rev and lb.url and not lb.dur:
+        if lb and m.get("rev") == lb.rev and lb.url and not lb.dur and lb.may_report(c):
             ms = int(m.get("ms", 0))
             if 1000 <= ms <= 48 * 3600 * 1000:
                 lb.dur = ms
@@ -2974,41 +2986,47 @@ async def sweep():
     """Every SYNC_EVERY s the games get the clock again (each corrects its drift); rooms nobody uses go."""
     while True:
         await asyncio.sleep(SYNC_EVERY)
-        for r in list(srv_rooms.values()) + list(lobbies.values()):
-            if r.url and any(c.kind == "game" for c in r.conns):
-                r.to_games(r.state_line())
-        t = time.time()
-        for key, r in list(srv_rooms.items()):
-            if not r.conns and t - r.empty_since > SERVER_TTL:
-                del srv_rooms[key]   # its screens stay in the database
+        try:
+            for r in list(srv_rooms.values()) + list(lobbies.values()):
+                if r.url and any(c.kind == "game" for c in r.conns):
+                    r.to_games(r.state_line())
+            t = time.time()
+            for key, r in list(srv_rooms.items()):
+                if not r.conns and t - r.empty_since > SERVER_TTL:
+                    del srv_rooms[key]   # its screens stay in the database
+        except Exception:
+            log.exception("sweep")   # next round tries again
 
 
 async def housekeeping():
     last_sweep = 0
     while True:
         await asyncio.sleep(5)
-        t = time.time()
-        if t - last_sweep >= 60:
-            last_sweep = t
-            expire_lobbies(t)
-            db.x("DELETE FROM visits WHERE at<?", t - VISITS_KEEP)
-        for code, lb in list(lobbies.items()):
-            if lb.dirty:
-                save_lobby(lb)
-            if lb.conns:
-                lb.empty_since = t
-            elif t - lb.empty_since > LOBBY_UNLOAD:
-                save_lobby(lb)
-                del lobbies[code]
-        for code, (sid, exp) in list(pair_codes.items()):
-            if exp < t:
-                pair_codes.pop(code, None)
-        for tok in list(hls_tokens):
-            hls_stream(tok)   # drops the dead ones
-        mono = time.monotonic()
-        for vid, ch in list(yt_chats.items()):   # forget chats nobody has looked at for a while
-            if not ch.subs and (ch.task is None or ch.task.done()) and mono - ch.used > 600 and not ch.watchers():
-                del yt_chats[vid]
+        try:
+            t = time.time()
+            if t - last_sweep >= 60:
+                last_sweep = t
+                expire_lobbies(t)
+                db.x("DELETE FROM visits WHERE at<?", t - VISITS_KEEP)
+            for code, lb in list(lobbies.items()):
+                if lb.dirty:
+                    save_lobby(lb)
+                if lb.conns:
+                    lb.empty_since = t
+                elif t - lb.empty_since > LOBBY_UNLOAD:
+                    save_lobby(lb)
+                    del lobbies[code]
+            for code, (sid, exp) in list(pair_codes.items()):
+                if exp < t:
+                    pair_codes.pop(code, None)
+            for tok in list(hls_tokens):
+                hls_stream(tok)   # drops the dead ones
+            mono = time.monotonic()
+            for vid, ch in list(yt_chats.items()):   # forget chats nobody has looked at for a while
+                if not ch.subs and (ch.task is None or ch.task.done()) and mono - ch.used > 600 and not ch.watchers():
+                    del yt_chats[vid]
+        except Exception:
+            log.exception("housekeeping")   # one database hiccup mustn't stop saving lobbies for good
 
 
 def expire_lobbies(t):
@@ -3275,7 +3293,8 @@ def app_html():
 
 
 def safe_next(n):
-    return n if isinstance(n, str) and n.startswith("/") and not n.startswith("//") and len(n) < 200 else "/"
+    """Only the site's own pages (as http_handler serves them): "/\\evil.example" reads as "//evil.example" in browsers."""
+    return n if isinstance(n, str) and re.fullmatch(r"/(link|admin|l/[A-Za-z0-9]{4,8})?", n) else "/"
 
 
 async def http_handler(conn, req):

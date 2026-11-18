@@ -2,7 +2,7 @@
 // A practice diary drawn as Minecraft's book: page 1 (the log: the day's attempts as boss bars, and the form to
 // add one or change one) on its own, then spreads: 2 graph | 3 stats, 4 spots | 5 settings. Its pictures, font
 // and sounds are Minecraft's own, taken from the player's install by tools/mcassets.py into cstrike/custom/cstv
-// (resource/cstv/progbook.bin, progmc*.ttf, sound/progbook/*.wav); without them it's a plain book. The book's
+// (resource/cstv/progbook.bin, progfont.txt, sound/progbook/*.wav); without them it's a plain book. The book's
 // pixels are g_book_f screen px (x5 at 1080p), its text's and widgets' g_book_t (x2): finer, or a page would
 // hold 14 lines as in the game. Pictures go up once per scale as VGUI textures (DrawSetTextureRGBA, upscaled
 // here: VGUI filters them) and are drawn with DrawTexturedSubRect, the graph the same way when it changes.
@@ -144,7 +144,7 @@ static std::string p_day_label(const std::string &d, bool weekday = true)
 static std::string p_hhmm(long ts)
 {
     time_t t = (time_t)ts;
-    struct tm lt;
+    struct tm lt = {};   // a huge `created` makes localtime fail
 #ifdef _WIN32
     localtime_s(&lt, &t);
 #else
@@ -309,11 +309,12 @@ static void p_focus(int id);
 static void p_ask(const std::string &title, const std::string &sub, std::function<void()> yes);
 static void p_ask_close(bool yes);
 
-void gui_prog_cmd(int argc, const char *const *argv)
+void gui_prog_cmd(int argc, const char *const *argv, bool test)
 {
     if (argc < 2) return;
     std::string v = argv[1];
-    auto F = [&](int i) { return i < argc ? (float)atof(argv[i]) : -1.0f; };
+    // times come from the server: anything outside 0..24 h (inf, nan, 1e30) is "no time", or the graph never ends
+    auto F = [&](int i) { float t = i < argc ? (float)atof(argv[i]) : -1.0f; return t >= 0 && t <= 86400 ? t : -1.0f; };
     auto I = [&](int i) { return i < argc ? atoi(argv[i]) : 0; };
     auto A = [&](int i) { return std::string(i < argc ? argv[i] : ""); };
     g_prog_server = true;   // only the plugin sends these
@@ -355,7 +356,9 @@ void gui_prog_cmd(int argc, const char *const *argv)
     else if (v == "attempt" && argc >= 7) {
         pg.att = I(2) != 0; pg.att_from = A(3); pg.att_ft = F(4); pg.att_now = F(5); pg.att_fail = F(6);
     }
-    // (testing: pages, a picked attempt, the mouse, the keyboard focus, a question, the graph's days)
+    // testing (`prog_ui_test`, console only): pages, a picked attempt, the mouse, the keyboard focus, a question,
+    // the graph's days. Never from a server: `key` would type into the CS:TV window.
+    else if (!test) return;
     else if (v == "tab" && argc >= 3) p_view(I(2) <= 0 ? PV_LOG : I(2) <= 2 ? PV_GRAPH : PV_SPOTS, false);
     else if (v == "pick" && argc >= 3) p_pick(I(2));
     else if (v == "mouse" && argc >= 4) { g_vx = F(2); g_vy = F(3); }
@@ -1308,7 +1311,7 @@ static void p_chart_draw(PSeries *ser, int ns, int pw, int ph, float scale, floa
     const Col grid = {120, 95, 60, 150}, axis = {63, 48, 30, 255};
     for (const PSpot &s : pg.spots) {
         if (p_is_end(s) || s.lo > scale) continue;
-        int x0 = (int)(s.lo / scale * pw), x1 = std::max(x0 + 1, (int)(p_spot_hi(s) / scale * pw));
+        int x0 = (int)(s.lo / scale * pw), x1 = std::max(x0 + 1, (int)(std::min(p_spot_hi(s), scale) / scale * pw));
         for (int x = x0; x < x1; x++) for (int y = 0; y < ph; y++) c.put(x, y, M_BAND);
     }
     for (float v = step; v <= top + 0.01f; v += step) {

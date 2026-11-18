@@ -82,6 +82,8 @@ else:
     FONT = "/usr/share/fonts/noto/NotoSans-Regular.ttf"
     FONT_BOLD = "/usr/share/fonts/noto/NotoSans-Bold.ttf"
     FONT_EMOJI = "/usr/share/fonts/noto/NotoColorEmoji.ttf"
+    if not os.path.exists(FONT):   # other distros keep Noto elsewhere: the Roboto Mono we ship
+        FONT, FONT_BOLD = (os.path.join(HERE, "fonts", n) for n in ("RobotoMono-Regular.ttf", "RobotoMono-Bold.ttf"))
 NAME_COLORS = [(255, 0, 0), (0, 0, 255), (0, 128, 0), (178, 34, 34), (255, 127, 80), (154, 205, 50), (255, 69, 0),
                (46, 139, 87), (218, 165, 32), (210, 105, 30), (95, 158, 160), (30, 144, 255), (255, 105, 180),
                (138, 43, 226), (0, 255, 127)]
@@ -1246,8 +1248,11 @@ class LobbyChat:
         key = (url, w, h)
         with self.lock:
             if key in self.media:
+                self.media[key] = self.media.pop(key)   # most recently used last
                 return self.media[key]
             self.media[key] = None
+            if len(self.media) > 60:   # a picker GIF is 13-26 MB of frames: drop the least recently used
+                self.media.pop(next(iter(self.media)))
         def load():
             em = None
             try:

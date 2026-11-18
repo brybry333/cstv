@@ -235,7 +235,6 @@ static void send(const char *fmt, ...)
 struct QItem { std::string uid, url, title, by; };
 struct HItem { std::string url, title, by; long at; };
 struct Member { std::string id, name, where; };
-struct Result { std::string url, title, channel; long dur; };
 
 static struct {
     bool master;
@@ -256,10 +255,6 @@ static struct {
     std::string roster_owner;
     std::vector<Member> roster;
     std::string notice;
-    int search_id;
-    bool searching;
-    std::string search_status;
-    std::vector<Result> results;
     std::string join_code;   // the lobby a joinfail was about
     bool join_need_pw;
     int vol = 100;
@@ -400,7 +395,7 @@ static void on_srv(const std::vector<std::string> &w)
 void gui_on_line(const char *line)
 {
     if (!line) return;
-    static std::vector<std::string> w;
+    std::vector<std::string> w;   // not static: a failed send in here drops the link and calls us again
     split(line, ' ', w);
     if (w.empty()) return;
     const std::string &v = w[0];
@@ -427,23 +422,6 @@ void gui_on_line(const char *line)
         st.chat_avail = w[1] == "1";
     } else if (v == "chat" && w.size() >= 2) {
         st.chat_state = atoi(w[1].c_str());
-    } else if (v == "result" && w.size() >= 7) {
-        if (atoi(w[1].c_str()) != st.search_id || st.results.size() >= 50) return;
-        Result r;
-        if (!b64dec(w[3], r.url) || r.url.empty()) return;
-        r.title = dec(w[4]);
-        r.channel = dec(w[5]);
-        r.dur = w[6] == "-" ? -1 : atol(w[6].c_str());
-        st.results.push_back(r);
-    } else if (v == "results_end" && w.size() >= 3) {
-        if (atoi(w[1].c_str()) != st.search_id) return;
-        st.searching = false;
-        if (w[2].find_first_not_of("0123456789") == std::string::npos) {
-            st.search_status = st.results.empty() ? "No results" : std::to_string(st.results.size()) + " results";
-        } else {
-            std::string err = dec(w[2]);
-            st.search_status = "Search failed" + (err.empty() ? std::string() : ": " + err);
-        }
     } else if (v == "lchat_pick" && w.size() >= 2) {   // an emote picked in the Lobby page's picker
         std::string name = dec(w[1]);
         if (!name.empty()) chat_insert(name);

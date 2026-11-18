@@ -1,9 +1,10 @@
 # CS:TV protocols (client-only version)
 
 ```
-libcstv.so (game) ──unix socket /tmp/cstv/ctl.sock──▶ cstvd ──TCP 27970──▶ cstv-master (NA <master-host>)
-                                                         └──RTMP 1935──▶ mediamtx on NA (streams only)
+libcstv.so (game) ──unix socket /tmp/cstv/ctl.sock──▶ cstvd ──cstv_link.py, WebSocket wss://cstv.xyz/game──▶ hub (hub/hub.py)
+                                                         └──RTMP 1935──▶ mediamtx next to the hub (streams only)
 ```
+"Master" below is the hub: it speaks this line protocol on `/game` (several lines per WebSocket text message).
 
 All three links: one line per message, words separated by single spaces, `\n` terminated.
 Free text, names, titles and URLs are base64url without padding (`b64` below); `-` = empty.
@@ -88,7 +89,6 @@ cstvd and the client accept `rtmp://` links only when the host is the master's h
 |---|---|
 | `ident <steamid64> <name b64>` | sent on connect; cstvd uses it for `hello` |
 | `m <master line>` | forward to the master (cstvd only passes the client verbs listed above, ≤ 3000 bytes) |
-| `search <id> <query b64>` | YouTube search (yt-dlp `ytsearch15:`) |
 | `pref <name> <value>` | set + save a personal setting (`vol 0-100`, `quality <auto\|source\|1080\|720\|480\|360>`, `subs 0\|1`, `chat 0\|1`, `upnext 0\|1`, `hud 0\|1`, `hud_x`/`hud_y`/`hud_w` 0..1) in `~/.config/cstv/prefs` |
 | `pscreen <server>/<map>` | which personal screen is kept here? (sent with every new `where`) |
 | `pscreen <server>/<map> <scale> <float> <pos> <normal> <right> <up>` / `pscreen <server>/<map> none` | keep / forget the personal screen here (geometry as in `place`) |
@@ -103,7 +103,6 @@ cstvd and the client accept `rtmp://` links only when the host is the master's h
 | `master <0\|1>` | master connection up/down |
 | `pref <name> <value>` | all prefs, sent on client connect and after each change |
 | `pscreen <server>/<map> <geometry>\|none` | answer to every `pscreen` line: what is kept there now |
-| `result <id> <i> <url b64> <title b64> <channel b64> <duration s\|->` / `results_end <id> <n\|error b64>` | search results |
 | `stream_state <idle\|starting\|live\|error> <text b64\|->` | |
 | `capture 1` / `capture 0` | start / stop writing the game's picture and sound into `/tmp/cstv/capture` (map it on `capture 1`: it's a new file each stream; also stop when `active` is 0) |
 | `chat 0\|1` | as before |
@@ -120,5 +119,5 @@ the client reads `pref vol` for the distance volume and the `hud*` prefs for the
   (`<key> <geometry>` lines, at most 1000) and never tells the master.
 * HUD: the video on the player's HUD; prefs only. Volume is full while it's on, else by the nearest world screen.
 
-## Master address
-cstvd: `CSTV_MASTER` env, else `master=` in the prefs file, else `<master-host>:27970`.
+## Hub address
+cstvd: `CSTV_HUB_URL` env, else `hub=` in the prefs file, else `wss://cstv.xyz/game`.

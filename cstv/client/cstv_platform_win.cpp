@@ -78,20 +78,35 @@ intptr_t plat_connect()
 
 int plat_send(intptr_t s, const char *buf, int n) { return send((SOCKET)s, buf, n, 0); }
 
-int plat_recv(intptr_t s, char *buf, int n) { return recv((SOCKET)s, buf, n, 0); }
+int plat_recv(intptr_t s, char *buf, int n)
+{
+    int r = recv((SOCKET)s, buf, n, 0);
+    return r == SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK ? 0 : r;   // a reset = closed
+}
 
 void plat_close(intptr_t s) { closesocket((SOCKET)s); }
+
+// The handle stays open while mapped: a named mapping loses its NAME when its last handle closes, so a restarted
+// cstvd would make a new one while we kept reading the old one (frozen picture). Main thread only.
+static struct { void *view; HANDLE h; } g_maps[8];
 
 void *plat_map(const char *name, size_t size)
 {
     HANDLE m = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, name);
     if (!m) return nullptr;
     void *v = MapViewOfFile(m, FILE_MAP_ALL_ACCESS, 0, 0, size);
-    CloseHandle(m);   // the view keeps the mapping alive
+    for (auto &e : g_maps)
+        if (v && !e.view) { e = {v, m}; return v; }
+    CloseHandle(m);
     return v;
 }
 
-void plat_unmap(void *p, size_t) { UnmapViewOfFile(p); }
+void plat_unmap(void *p, size_t)
+{
+    UnmapViewOfFile(p);
+    for (auto &e : g_maps)
+        if (e.view == p) { CloseHandle(e.h); e = {}; }
+}
 
 bool plat_in_game()
 {
@@ -116,12 +131,6 @@ bool plat_claim()
     if (GetEnvironmentVariableA("CSTV_CLIENT_LOADED", v, sizeof v)) return false;
     SetEnvironmentVariableA("CSTV_CLIENT_LOADED", "1");
     return true;
-}
-
-bool plat_claimed()
-{
-    char v[8];
-    return GetEnvironmentVariableA("CSTV_CLIENT_LOADED", v, sizeof v) > 0;
 }
 
 // cstvd.exe lives in the cstv folder next to this DLL. The client asks for it when connecting has failed

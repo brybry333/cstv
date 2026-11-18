@@ -18,7 +18,7 @@ void *plat_swap_slot(void *obj, int slot, void *fn);        // vtable slot swap;
 // connection to cstvd (-1 = none)
 intptr_t plat_connect();                                    // non-blocking, connected; -1 if cstvd isn't there
 int plat_send(intptr_t s, const char *buf, int n);          // bytes sent; anything short = failed (never blocks)
-int plat_recv(intptr_t s, char *buf, int n);                // > 0 data, 0 cstvd closed it, < 0 nothing right now
+int plat_recv(intptr_t s, char *buf, int n);                // > 0 data, 0 cstvd closed it (or an error), < 0 nothing right now
 void plat_close(intptr_t s);
 
 void *plat_map(const char *name, size_t size);              // cstvd's / the overlay's shared memory, or null

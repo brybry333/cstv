@@ -50,6 +50,7 @@
 #define strncasecmp _strnicmp
 #else
 #include <dlfcn.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <strings.h>
@@ -206,6 +207,7 @@ static bool g_running = true;   // the master's clock is running (false while it
 static double g_last_connect_try, g_last_ping, g_last_where;
 static cstv_shm *g_shm;
 static std::string g_ident_sent, g_where_sent;   // what cstvd was last told (resent after reconnecting)
+static void helper_drop();
 
 static bool helper_send(const char *fmt, ...)
 {
@@ -217,10 +219,7 @@ static bool helper_send(const char *fmt, ...)
     va_end(ap);
     if (n <= 0 || n >= (int)sizeof buf) return false;
     if (plat_send(g_sock, buf, n) != n) {
-        plat_close(g_sock);
-        g_sock = -1;
-        g_playing_sent = false;   // after reconnecting, send the link + aged position again
-        capture_stop();
+        helper_drop();
         say("lost the connection to cstvd");
         return false;
     }
@@ -280,6 +279,20 @@ static void helper_connect(double t)
 static std::string g_from_helper;
 static bool g_chat_active;   // cstvd is drawing a chat for the current video
 static bool g_chat_panel;    // ... and the player wants it beside the screen (else it's for the window's Live tab)
+static int g_last_vol = -1;
+
+// every way the connection ends (send failed, cstvd closed it, CS:TV off)
+static void helper_drop()
+{
+    if (g_sock >= 0) plat_close(g_sock);
+    g_sock = -1;
+    g_playing_sent = false;   // after reconnecting, send the link + aged position again
+    g_from_helper.clear();
+    g_chat_active = false;
+    g_last_vol = -1;          // a new cstvd starts at full volume
+    capture_stop();
+    gui_on_line("master 0");  // the window shows offline, not the old room
+}
 static double g_last_bind_check;
 static int g_user_vol = 100;
 static bool g_universal;     // pref universal: full volume everywhere, like with the HUD screen on
@@ -419,12 +432,7 @@ static void helper_poll()
         if (g_from_helper.size() > 262144) g_from_helper.clear();   // a whole queue fits in far less
     }
     if (r == 0) {
-        plat_close(g_sock);
-        g_sock = -1;
-        g_playing_sent = false;
-        g_from_helper.clear();
-        g_chat_active = false;
-        capture_stop();
+        helper_drop();
         say("lost the connection to cstvd");
         return;
     }
@@ -1364,15 +1372,18 @@ static ConCommand g_cmd_say("say", say_cb, "say (CS:TV commands like !tv stay on
 static ConCommand g_cmd_say_team("say_team", say_cb, "say_team (CS:TV commands like !tv stay on this client)");
 static ConCommand g_cmd_cstv("cstv", cstv_cb, "CS:TV: cstv (window), cstv place [personal], cstv hud, cstv tv small, cstv link <url>, cstv pause, cstv next, cstv vol 50, cstv help ...");
 // the Progress Log window (cstv_prog.inc): the server's progresslog plugin sends `prog_ui ...`
-static void prog_cb(const CCommand &args)
+static void prog_args(const CCommand &args, bool test)
 {
     std::vector<const char *> v;
     for (int i = 0; i < args.ArgC(); i++) v.push_back(args[i]);
-    gui_prog_cmd((int)v.size(), v.data());
+    gui_prog_cmd((int)v.size(), v.data(), test);
 }
+static void prog_cb(const CCommand &args) { prog_args(args, false); }
+static void prog_test_cb(const CCommand &args) { prog_args(args, true); }
 static void book_cb(const CCommand &) { gui_prog_toggle(); }
 static ConCommand g_cmd_book("cstv_book", book_cb, "Open or close the Progress Log");
 static ConCommand g_cmd_prog("prog_ui", prog_cb, "Progress Log window (the server's progresslog plugin drives it; !prog)", FCVAR_SERVER_CAN_EXECUTE);
+static ConCommand g_cmd_prog_test("prog_ui_test", prog_test_cb, "Progress Log: prog_ui plus the testing verbs (tab, pick, mouse, focus, ask, noask, key, graph)");
 static ConCommandBase *g_say_orig[2];   // server.so's say / say_team
 static ConCommand *const g_say_ours[2] = {&g_cmd_say, &g_cmd_say_team};
 static bool g_cmds_done, g_say_is_ours;
@@ -1384,6 +1395,7 @@ static void register_commands()
     g_cvar->RegisterConCommand(&g_cmd_cstv);
     g_cvar->RegisterConCommand(&g_cmd_book);
     g_cvar->RegisterConCommand(&g_cmd_prog);
+    g_cvar->RegisterConCommand(&g_cmd_prog_test);
     for (int i = 0; i < 2; i++) {
         ConCommandBase *c = g_cvar->FindCommandBase(g_say_ours[i]->GetName());
         if (c && !c->IsCommand()) continue;
@@ -1420,14 +1432,7 @@ static void go_dark()
     stop_video();
     if (g_place.on) g_place.on = false;
     if (gui_open()) gui_toggle();
-    capture_stop();
-    if (g_sock >= 0) {
-        plat_close(g_sock);
-        g_sock = -1;
-    }
-    g_from_helper.clear();
-    g_chat_active = false;
-    g_playing_sent = false;
+    helper_drop();
     g_ident_sent.clear();
     g_where_sent.clear();
     keep_bound(now_s(), true);   // the placeholder again
@@ -1472,7 +1477,6 @@ static void main_tick()
 }
 
 static const float VIS_MAX_DIST = 3000, VOL_FULL = 300, VOL_ZERO = 1500;
-static int g_last_vol = -1;
 static double g_last_vol_time;
 
 // can (a point of) the screen be on screen: near, or within 80 degrees of the view direction
@@ -1799,7 +1803,11 @@ intptr_t plat_connect()
 }
 
 int plat_send(intptr_t s, const char *buf, int n) { return (int)send((int)s, buf, n, MSG_NOSIGNAL | MSG_DONTWAIT); }
-int plat_recv(intptr_t s, char *buf, int n) { return (int)recv((int)s, buf, n, MSG_DONTWAIT); }
+int plat_recv(intptr_t s, char *buf, int n)
+{
+    int r = (int)recv((int)s, buf, n, MSG_DONTWAIT);
+    return r < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR ? 0 : r;   // a reset = closed
+}
 void plat_close(intptr_t s) { close((int)s); }
 
 void *plat_map(const char *name, size_t size)

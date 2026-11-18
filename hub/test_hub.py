@@ -550,6 +550,35 @@ class HubTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(m.lobbies[code].owner, B_SID)
         self.assertTrue(m.lobbies[code].perms_sid(A_SID) & m.ADMIN)   # the old owner stays an admin
 
+    async def test_playlist_next_needs_skip_and_youtube(self):
+        await self.lobby()
+        self.a.send("lobby perm owner")   # bob may not skip
+        await sync(self.a, self.b)
+        yt = "https://www.youtube.com/watch?v=%s&list=PLabc"
+        evil = m.b64e("https://evil.example/youtube.com/watch?v=x&list=PLabc")
+        self.a.send("link " + m.b64e(yt % "aaaaaaaaaaa"))
+        la, lb = await sync(self.a, self.b)
+        rev = first(lb, "url")[1]
+        self.b.send(f"ended {rev} {m.b64e(yt % 'bbbbbbbbbbb')} -")   # not his to end while alice watches
+        lb, la = await sync(self.b, self.a)
+        self.assertFalse(all_of(la, "url") or all_of(la, "stop"))
+        self.a.send(f"ended {rev} {evil} -")   # "youtube.com/" in the path doesn't make it YouTube
+        la, lb = await sync(self.a, self.b)
+        self.assertTrue(all_of(lb, "stop"))
+        self.assertNotIn("evil", " ".join(m.b64d(w[2]) for w in all_of(lb, "url")))
+        self.a.send("link " + m.b64e(yt % "aaaaaaaaaaa"))
+        la, lb = await sync(self.a, self.b)
+        rev = first(lb, "url")[1]
+        self.a.send(f"ended {rev} {m.b64e(yt % 'bbbbbbbbbbb')} -")   # the list's real next video plays
+        la, lb = await sync(self.a, self.b)
+        self.assertEqual(m.b64d(first(lb, "url")[2]), yt % "bbbbbbbbbbb")
+
+    def test_safe_next(self):
+        for bad in ("/\\evil.example", "//evil.example", "https://evil.example", "/l/ABC234/../x", "", None):
+            self.assertEqual(m.safe_next(bad), "/")
+        for good in ("/", "/link", "/admin", "/l/ABC234"):
+            self.assertEqual(m.safe_next(good), good)
+
     async def test_stream(self):
         code = await self.lobby()
         self.a.send("stream start")

@@ -220,6 +220,7 @@ static atomic_int video_ready;  // ...and started playing it: until then mpv may
 static atomic_int load_gen, frame_gen;   // which load the latest accepted frame belongs to
 static int seek_wait;   // a seek holds the picture until enough is buffered
 static int catching;    // playing a little faster/slower to get back in step with the server
+static double catch_rate;   // the rate catchup_tick last set (0 = none yet this catch-up)
 static int resync_pending;   // a quality switch stalled playback: get back in step once it plays again
 static int switch_h, switch_tries;
 static int64_t switch_tried[4];
@@ -290,8 +291,11 @@ static void load_fonts(void)
     const char *const bold[] = {b1, NULL};
     const char *const reg[] = {r1, NULL};
 #else
-    static const char *const bold[] = {"/usr/share/fonts/noto/NotoSans-Bold.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf", NULL};
-    static const char *const reg[] = {"/usr/share/fonts/noto/NotoSans-Regular.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", NULL};
+    static char b1[1100], r1[1100];   // last: the Roboto Mono we ship (other distros keep Noto elsewhere)
+    os_exe_path(b1, sizeof b1, "fonts/RobotoMono-Bold.ttf");
+    os_exe_path(r1, sizeof r1, "fonts/RobotoMono-Regular.ttf");
+    const char *const bold[] = {"/usr/share/fonts/noto/NotoSans-Bold.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf", b1, NULL};
+    const char *const reg[] = {"/usr/share/fonts/noto/NotoSans-Regular.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", r1, NULL};
 #endif
     fonts_ok = load_font(&font_bold, bold) && load_font(&font_reg, reg);
     if (!fonts_ok) logf_("no font found: status screens will be blank");
@@ -1276,7 +1280,6 @@ static void stop_playback(const char *why)
 
 // twitch.tv/<channel> (live) -> streamlink; VODs/clips and everything else -> mpv + yt-dlp.
 // On a match the channel login is copied to `login` (if given).
-static int is_twitch_channel_l(const char *u, char *login, size_t n);
 static int is_twitch_channel_l(const char *u, char *login, size_t n)
 {
     const char *p = strstr(u, "://");
@@ -1325,7 +1328,13 @@ static int have_streamlink(void)
     os_exe_path(p, sizeof p, STREAMLINK_REL);
     return os_file_exists(p);
 #else
-    return os_file_exists("/usr/bin/streamlink") || os_file_exists("/usr/sbin/streamlink");
+    const char *s = getenv("PATH");   // spawned through execvp, so wherever it is on PATH (pipx: ~/.local/bin)
+    for (char p[1100]; s && *s; s += strcspn(s, ":"), s += *s == ':') {
+        size_t n = strcspn(s, ":");
+        snprintf(p, sizeof p, "%.*s/streamlink", (int)n, s);
+        if (n && os_file_exists(p)) return 1;
+    }
+    return 0;
 #endif
 }
 
@@ -1467,11 +1476,9 @@ static void load_url(const char *url, double pos_s, int paused)
         snprintf(cur_vid, sizeof cur_vid, "%s", vid);
         cur_index = index;
         win_sent_vid[0] = 0;
-        pthread_mutex_lock(&pl_mu);
-        int busy = pl_busy;
-        pthread_mutex_unlock(&pl_mu);
-        // with a video in the link, the list is looked up once its picture is up (main loop)
-        if (!vid[0] && !busy) playlist_lookup(url, list, list_start(list, index));
+        // with a video in the link, the list is looked up once its picture is up (main loop); a lookup still
+        // running for another list is outdated by this one (its result is dropped)
+        if (!vid[0]) playlist_lookup(url, list, list_start(list, index));
         if (!vid[0]) {   // a playlist page: play its first video once the list is known
             const char *cmd[] = {"stop", NULL};
             mpv_command(mpv, cmd);
@@ -1636,8 +1643,7 @@ static void catchup_tick(void)
     // <= 5% (6% when following tightly): barely audible, even on music
     double lim = sync_tol < 0.3 ? 0.06 : 0.05;
     double rate = 1 + fmax(-lim, fmin(lim, off / (sync_tol < 0.3 ? 4 : 10)));
-    static double last_rate;
-    if (fabs(rate - last_rate) > 0.01) { last_rate = rate; set_speed(cur_speed * rate); }
+    if (fabs(rate - catch_rate) > 0.01) { catch_rate = rate; set_speed(cur_speed * rate); }
 }
 
 // YouTube & co. have every quality as its own track (ytdl_hook all_formats): pick the best video track
@@ -1805,6 +1811,7 @@ static void check_drift(double expected)
         logf_("resync: was %.1f s, server says %.1f s", t, expected);
     } else if (fabs(off) > sync_tol && !catching) {
         catching = 1;
+        catch_rate = 0;   // an interrupted catch-up left its rate here, and mpv is back at 1x
         logf_("catching up: %.2f s %s", fabs(off), off > 0 ? "behind" : "ahead");
     }
 }
@@ -2084,7 +2091,7 @@ static void apply_opt(const char *name, const char *val)
 }
 
 // ~/.config/cstv/prefs, key=value lines: the player's own settings (the master never sees them). The
-// file may also set master=host:port and stream_cmd=<shell command, {url} = where to push> (replaces the
+// file may also set hub=wss://host/game and stream_cmd=<shell command, {url} = where to push> (replaces the
 // in-game capture: a desktop capture of the player's choosing, desktop audio and all); the game can't
 // change those two.
 // hud: the HUD screen on/off; hud_x / hud_y / hud_w: its top left and width as fractions of the screen.
@@ -2322,88 +2329,6 @@ static void start_title_job(const char *uid, const char *url_b64)
     pthread_t t;
     if (pthread_create(&t, NULL, title_thread, j) == 0) pthread_detach(t);
     else free(j);
-}
-
-// ------------------------------------------------------------------ YouTube search for the game's menu
-struct search_job { char id[24]; char q[300]; };
-static atomic_int searches;
-
-static void *search_thread(void *arg)
-{
-    struct search_job *j = arg;
-    const size_t cap = 256 * 1024;
-    char *out = malloc(cap), yt[1100], term[320];
-    size_t len = 0;
-    int rc = -1;
-    snprintf(term, sizeof term, "ytsearch15:%s", j->q);
-    // \x1f between the fields: titles can hold anything else
-    const char *argv[] = {tool("yt-dlp", YTDLP_REL, yt, sizeof yt), "--no-cache-dir", "--no-warnings", "--flat-playlist",
-                          "--print", "%(url)s\x1f%(title)s\x1f%(channel)s\x1f%(duration)s", "--", term, NULL};
-    os_proc pr;
-    int fd;
-    if (out && os_spawn(argv, NULL, OS_OUT_PIPE, &fd, &pr) == 0) {
-        int r;
-        while (len + 1 < cap && (r = (int)read(fd, out + len, (unsigned)(cap - 1 - len))) > 0) len += (size_t)r;
-        close(fd);
-        rc = os_proc_wait(&pr);
-    }
-    int n = 0;
-    pthread_mutex_lock(&pl_mu);   // game_send from a thread: keep lines whole
-    if (out) {
-        out[len] = 0;
-        char *save = NULL;
-        for (char *line = strtok_r(out, "\n", &save); line && n < 15; line = strtok_r(NULL, "\n", &save)) {
-            char *f[4] = {line, NULL, NULL, NULL};
-            for (int k = 1; k < 4; k++) {
-                f[k] = f[k - 1] ? strchr(f[k - 1], '\x1f') : NULL;
-                if (f[k]) *f[k]++ = 0;
-            }
-            if (!f[3] || !url_syntax_ok(f[0])) continue;
-            char bu[2800], bt[400], bc[200], dur[16] = "-";
-            if (!strcmp(f[2], "NA")) f[2] = "";
-            b64encode(f[0], bu, sizeof bu);
-            b64encode(strcmp(f[1], "NA") ? f[1] : "", bt, sizeof bt);
-            b64encode(f[2], bc, sizeof bc);
-            if (strcmp(f[3], "NA") && atof(f[3]) > 0) snprintf(dur, sizeof dur, "%ld", (long)atof(f[3]));
-            game_send("result %s %d %s %s %s %s\n", j->id, n, bu, bt[0] ? bt : "-", bc[0] ? bc : "-", dur);
-            n++;
-        }
-    }
-    if (n || rc == 0) {
-        game_send("results_end %s %d\n", j->id, n);
-    } else {
-        char be[64];
-        b64encode("search failed", be, sizeof be);
-        game_send("results_end %s %s\n", j->id, be);
-    }
-    pthread_mutex_unlock(&pl_mu);
-    logf_("search %s: %d results", j->id, n);
-    free(out);
-    free(j);
-    searches--;
-    return NULL;
-}
-
-static void start_search(const char *id, const char *q_b64)
-{
-    char q[300];
-    if (!id_ok(id) || strlen(id) > 20 || b64decode(q_b64, q, sizeof q) <= 0) return;
-    for (char *p = q; *p; p++)
-        if ((unsigned char)*p < ' ') *p = ' ';
-    if (searches >= 2) {   // someone typing fast: don't pile up yt-dlp processes
-        char be[64];
-        b64encode("busy, try again", be, sizeof be);
-        game_send("results_end %s %s\n", id, be);
-        return;
-    }
-    struct search_job *j = calloc(1, sizeof *j);
-    if (!j) return;
-    snprintf(j->id, sizeof j->id, "%s", id);
-    snprintf(j->q, sizeof j->q, "%s", q);
-    searches++;
-    pthread_t t;
-    if (pthread_create(&t, NULL, search_thread, j) == 0) pthread_detach(t);
-    else { searches--; free(j); }
 }
 
 // ------------------------------------------------------------------ the CS:TV hub (cstv.xyz)
@@ -3329,9 +3254,6 @@ static void handle_line(char *line)
         snprintf(ident_id, sizeof ident_id, "%s", a);
         snprintf(ident_name, sizeof ident_name, "%s", name);
         if (changed && m_state != M_OFF) { m_close(NULL); m_next_try = 0; }   // say hello again as the new player
-    } else if (!strcmp(cmd, "search") && n >= 2) {   // search <id> <query b64>
-        char q[2100] = "";
-        if (sscanf(line, "%*s %*s %2099s", q) == 1) start_search(a, q);
     } else if (!strcmp(cmd, "pref") && n >= 2) {   // pref <name> <value>
         char v[64] = "";
         if (sscanf(line, "%*s %*s %63s", v) == 1) set_pref(a, v);
@@ -3368,8 +3290,6 @@ static void handle_line(char *line)
             sync_at = 0;   // the clock was rebased; the sync that follows has the new base
             if (!cur_live && !catching) mpv_set_property(mpv, "speed", MPV_FORMAT_DOUBLE, &cur_speed);
         }
-    } else if (!strcmp(cmd, "tol") && n >= 2) {
-        apply_tol(atol(a));
     } else if (!strcmp(cmd, "seek") && n >= 2) {   // someone seeked: go there exactly
         double p = atol(a) / 1000.0;
         sync_at = 0;   // positions from before the seek mean nothing now
@@ -3384,20 +3304,12 @@ static void handle_line(char *line)
                 pending_running = 0;
             }
         }
-    } else if (!strcmp(cmd, "title") && n >= 2) {   // title <uid> <url b64url>: look up a queued link's title
-        char ub[2100] = {0};
-        if (sscanf(line, "%*s %*s %2099s", ub) == 1) start_title_job(a, ub);
-    } else if (!strcmp(cmd, "prefetch") && n >= 2) {   // prefetch <url b64url>: what plays next
-        char url[2048];
-        if (b64decode(a, url, sizeof url) >= 0 && url_syntax_ok(url)) prefetch(url);
     } else if (!strcmp(cmd, "simbreak")) {   // testing: act as if YouTube refused a chunk
         stream_broken = 1;
     } else if (!strcmp(cmd, "dbg") && n >= 2) {   // dbg <mpv property>: log its value (for debugging)
         char *v = mpv_get_property_string(mpv, a);
         logf_("dbg %s = %.300s", a, v ? v : "(unavailable)");
         mpv_free(v);
-    } else if (!strcmp(cmd, "skip")) {
-        if (cur_url[0]) { next_sent = 0; want_next = 1; }
     } else if (!strcmp(cmd, "info")) {
         if (cur_login[0]) overlay_send("{\"cmd\":\"info\",\"login\":\"%s\"}\n", cur_login);
     } else if (!strcmp(cmd, "opt") && n >= 2) {   // opt <name> <value>: per-player settings

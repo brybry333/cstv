@@ -1927,8 +1927,4 @@ if (startQ.get('login') === 'failed') {
   history.replaceState(null, '', location.pathname);
   setTimeout(() => toast("Steam sign-in didn't work. Try again.", true), 300);
 }
-if (startQ.get('twitch') === 'failed') {
-  history.replaceState(null, '', location.pathname);
-  setTimeout(() => toast("Twitch sign-in didn't work. Try again.", true), 300);
-}
-else connect();
+connect();
