@@ -87,6 +87,35 @@ static void os_init_paths(void)
 #endif
 }
 
+// Keep cstvd (and everything it starts: mpv's threads, yt-dlp, ffmpeg) out of the game's way. Video work comes
+// in bursts every frame on many threads; at normal priority on the game's cores those bursts preempt the game's
+// main/render threads = stutter while a video plays. So: lower priority, and on hybrid Intel CPUs only the
+// E-cores (the game sits on the P-cores). Call first thing in main(): threads and children inherit both.
+#ifndef _WIN32
+#include <sched.h>
+#include <sys/resource.h>
+#endif
+static void os_stay_out_of_games_way(void)
+{
+#ifdef _WIN32
+    SetPriorityClass(GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS);
+#else
+    setpriority(PRIO_PROCESS, 0, 10);
+    FILE *f = fopen("/sys/devices/cpu_atom/cpus", "r");   // only exists on hybrid Intel CPUs: the E-cores, "12-19"
+    char list[256] = "";
+    if (f) { if (!fgets(list, sizeof list, f)) list[0] = 0; fclose(f); }
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    for (char *p = list; *p >= '0' && *p <= '9';) {   // "a-b,c,d-e"
+        long a = strtol(p, &p, 10), b = a;
+        if (*p == '-') b = strtol(p + 1, &p, 10);
+        for (long c = a; c <= b && c < CPU_SETSIZE; c++) CPU_SET(c, &set);
+        if (*p == ',') p++;
+    }
+    if (CPU_COUNT(&set) >= 2) sched_setaffinity(0, sizeof set, &set);
+#endif
+}
+
 // a file next to cstvd ("fonts/NotoSans-Bold.ttf" style, / is fine on both)
 static void os_exe_path(char *out, size_t n, const char *rel)
 {

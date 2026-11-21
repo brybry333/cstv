@@ -539,6 +539,9 @@ static int init_mpv(void)
         {"sub-font-size", "46"},
         {"sub-border-size", "3"},
         {"hwdec", "auto-copy"},
+        // the picture still gets scaled/converted on the CPU (1440p -> the 1080p screen); "auto" = one thread
+        // per CPU, all waking at once every frame. 4 keeps up with 1440p60 on E-cores
+        {"zimg-threads", "4"},
         {"keep-open", "yes"},
         {"cache-pause-initial", "yes"},      // start with a little buffer instead of stuttering at once
         {"cache-pause-wait", "1"},
@@ -1885,6 +1888,21 @@ static int ytdl_err_transient(void)
         || strstr(ytdl_err, "Temporary failure") || strstr(ytdl_err, "onnection");
 }
 
+// which decoder mpv picked, so a log shows whether the GPU decodes this video (players ask "is it using my GPU?")
+static void log_decoder(void)
+{
+    char *codec = mpv_get_property_string(mpv, "video-codec");
+    if (!codec) return;   // audio only
+    char *hw = mpv_get_property_string(mpv, "hwdec-current");
+    int gpu = hw && hw[0] && strcmp(hw, "no");
+    int64_t w = 0, h = 0;
+    mpv_get_property(mpv, "width", MPV_FORMAT_INT64, &w);
+    mpv_get_property(mpv, "height", MPV_FORMAT_INT64, &h);
+    logf_("video %s %lldx%lld, decoded on the %s%s", codec, (long long)w, (long long)h, gpu ? "GPU: " : "CPU", gpu ? hw : "");
+    mpv_free(codec);
+    mpv_free(hw);
+}
+
 static void handle_mpv_events(void)
 {
     for (;;) {
@@ -1892,6 +1910,7 @@ static void handle_mpv_events(void)
         if (ev->event_id == MPV_EVENT_NONE) break;
         switch (ev->event_id) {
         case MPV_EVENT_PLAYBACK_RESTART:   // the newly opened video is playing (also after seeks)
+            if (file_loaded && !video_ready) log_decoder();
             if (file_loaded) video_ready = 1;
             break;
         case MPV_EVENT_LOG_MESSAGE: {
@@ -3320,6 +3339,7 @@ static void handle_line(char *line)
 
 int main(void)
 {
+    os_stay_out_of_games_way();   // before any thread or child exists, so they all inherit it
     os_net_init();
     setlocale(LC_NUMERIC, "C");   // libmpv requires the C numeric locale
     dxt1_fast_init();
