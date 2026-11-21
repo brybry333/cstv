@@ -834,8 +834,17 @@ static bool send_m(const char *fmt, ...)
     int n = vsnprintf(buf, sizeof buf, fmt, ap);
     va_end(ap);
     if (n <= 0 || n >= (int)sizeof buf) return false;
-    if (helper_send("m %s\n", buf)) return true;
-    cstv_print("cstvd isn't running, so CS:TV can't do that right now.");
+    if (!helper_send("m %s\n", buf)) {
+        cstv_print("cstvd isn't running, so CS:TV can't do that right now.");
+        return false;
+    }
+    if (gui_hub_up()) return true;
+    // cstvd drops it without a word
+#ifdef _WIN32
+    cstv_print("Not connected to cstv.xyz, so CS:TV can't do that right now. It keeps retrying; why it can't connect is in %TEMP%\\cstv\\cstvd.log");
+#else
+    cstv_print("Not connected to cstv.xyz, so CS:TV can't do that right now. It keeps retrying; why it can't connect is in cstvd's log: journalctl --user -u cstvd, or ~/.cache/cstv/cstvd.log");
+#endif
     return false;
 }
 
@@ -1833,11 +1842,22 @@ void *plat_conmsg()
     return f;
 }
 
+// The game, and only when it runs insecure: hooks in a VAC-secured game are a ban risk, and a launch line can lose
+// -insecure but keep LD_PRELOAD. -insecure like the engine's FindParm: any argument but argv[0], any case.
 bool plat_in_game()
 {
     char comm[64] = {0};
     if (FILE *f = fopen("/proc/self/comm", "r")) { if (!fgets(comm, sizeof comm, f)) comm[0] = 0; fclose(f); }
-    return strstr(comm, "cstrike_linux64") != nullptr;
+    if (!strstr(comm, "cstrike_linux64")) return false;
+    char cmd[16384];
+    size_t n = 0;
+    if (FILE *f = fopen("/proc/self/cmdline", "rb")) { n = fread(cmd, 1, sizeof cmd - 1, f); fclose(f); }
+    cmd[n] = 0;
+    for (size_t i = strlen(cmd) + 1; i < n; i += strlen(cmd + i) + 1)
+        if (!strcasecmp(cmd + i, "-insecure")) return true;
+    static bool told;
+    if (!told) { told = true; fprintf(stderr, "CS:TV: the game runs without -insecure, CS:TV stays off\n"); }
+    return false;
 }
 
 bool plat_disabled()

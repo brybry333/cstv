@@ -35,9 +35,19 @@ get "https://www.python.org/ftp/python/$PY_VER/python-$PY_VER-embed-amd64.zip" p
 # deno publishes PowerShell's Get-FileHash output ("Hash      : A0C3...")
 (cd "$D" && echo "$(tr -d '\r' < deno.zip.sha256sum | awk '/^Hash/ {print tolower($3)}')  deno.zip" | sha256sum -c -)
 
+# the others publish no checksum file next to the download: pinned to what the releases so far shipped (bump
+# these together with the versions above)
+(cd "$D" && sha256sum -c - <<SUMS
+d6638b2b40561e6071627f39ad60a38e15721dc87a49f244b897911ea2edfd9f  $MPV_FILE
+329eb05252a3dbc8d8c5b8b6857b41acf61df4fd818545a8ee322f3740b6caa1  $STREAMLINK_FILE
+a93abe456ab01bd96d7a085b3cdb6566b3063f4241360d114142fbdb07f0a310  python-embed.zip
+SUMS
+)
+
 # Pillow for Windows / this Python (a wheel is a zip; it gets unpacked into python\Lib\site-packages)
 if ! ls "$D"/pillow-$PILLOW_VER-cp314-*win_amd64.whl >/dev/null 2>&1; then
     pip download --quiet --no-deps --only-binary=:all: --platform win_amd64 --python-version 314 \
         --implementation cp -d "$D" "pillow==$PILLOW_VER"
 fi
+(cd "$D" && echo "fdafc9cce40277e0f7a0feabce0ee50dd2fa1800f3b38015e51296b5e814048d  pillow-$PILLOW_VER-cp314-cp314-win_amd64.whl" | sha256sum -c -)
 ls -la "$D"

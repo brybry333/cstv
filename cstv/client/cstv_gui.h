@@ -15,6 +15,7 @@ bool gui_xchat_on();                      // the Lobby page's Live tab shows the
 void gui_hud_toggle();                    // !tv hud / `cstv hud`
 const char *gui_shared_audience();        // who sees the shared screen here, e.g. "lobby K7Q2MX (3 players here)"
 bool gui_in_lobby();                      // the hub says we're in a lobby (for !leave)
+bool gui_hub_up();                        // cstvd is connected to cstv.xyz
 // The Progress Log (cstv_prog.inc): the same window with its own pages, fed by the server's progresslog plugin
 void gui_prog_cmd(int argc, const char *const *argv, bool test);   // `prog_ui ...` from the server; test = `prog_ui_test`
 void gui_prog_open();

@@ -2381,6 +2381,7 @@ bool gui_xchat_on() { return g_open && plat_now() - g_xchat_at < 0.5; }
 static bool gui_lchat_on() { return g_open && plat_now() - g_lchat_at < 0.5; }
 
 bool gui_in_lobby() { return st.master && st.room_kind == "lobby"; }
+bool gui_hub_up() { return st.master; }
 
 int gui_screen_alpha() { return st.opacity_screen * 255 / 100; }
 

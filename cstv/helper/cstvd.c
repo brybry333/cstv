@@ -3337,6 +3337,20 @@ static void handle_line(char *line)
     }
 }
 
+// runs the complete lines at the start of buf (blen bytes, 0-terminated); returns the length of what's left
+static size_t run_lines(char *buf, size_t blen, size_t cap)
+{
+    char *s = buf, *nl;
+    while ((nl = strchr(s, '\n'))) {
+        *nl = 0;
+        handle_line(s);
+        s = nl + 1;
+    }
+    blen = strlen(s);
+    memmove(buf, s, blen + 1);
+    return blen > cap / 2 ? 0 : blen;   // garbage, drop it
+}
+
 int main(void)
 {
     os_stay_out_of_games_way();   // before any thread or child exists, so they all inherit it
@@ -3381,14 +3395,23 @@ int main(void)
     sock_t cl = SOCK_BAD;
     char buf[8192];
     size_t blen = 0;
+    // A new connection waits here until its first line. On Windows any program can reach the TCP port, a web page
+    // too (a browser's POST starts "POST / HTTP/1.1"): that must neither replace the game's connection nor send
+    // commands, so a first line that is HTTP (or none within 5 s) closes it.
+    sock_t pend = SOCK_BAD;
+    char pbuf[2048];
+    size_t plen = 0;
+    uint64_t pend_at = 0;
     // Started by cstv-launch along with the game: quit when there's no game to serve (the launcher stops
     // us when the game exits; this covers the launcher being killed). Grace: 180 s for the game to start
     // and connect, 15 s after it disconnects (it reconnects within 2 s when we restart).
     int with_game = getenv("CSTV_QUIT_WITHOUT_GAME") != NULL;
     uint64_t alone_since = now_ns(), alone_limit = 180000000000ull;
     for (;;) {
-        struct pollfd pf[3] = {{ls, POLLIN, 0}, {os_wake_rd, POLLIN, 0}, {cl, POLLIN, 0}};
-        int npf = cl != SOCK_BAD ? 3 : 2;
+        struct pollfd pf[4] = {{ls, POLLIN, 0}, {os_wake_rd, POLLIN, 0}};
+        int npf = 2, icl = -1, ipend = -1;   // (WSAPoll only takes real sockets)
+        if (cl != SOCK_BAD) { icl = npf; pf[npf].fd = cl; pf[npf].events = POLLIN; pf[npf++].revents = 0; }
+        if (pend != SOCK_BAD) { ipend = npf; pf[npf].fd = pend; pf[npf].events = POLLIN; pf[npf++].revents = 0; }
         poll(pf, npf, 200);
         shm->heartbeat_ns = now_ns();
         if (with_game && cl == SOCK_BAD && now_ns() - alone_since > alone_limit) {
@@ -3402,23 +3425,7 @@ int main(void)
             os_wake_drain();
             handle_mpv_events();
         }
-        if (pf[0].revents & POLLIN) {
-            sock_t c = os_accept(ls);
-            if (c != SOCK_BAD) {
-                if (cl != SOCK_BAD) sock_close(cl);   // newest game connection wins
-                cl = c;
-                game_fd = c;
-                game_send("chat %d\n", chat_state);
-                if (chat_avail >= 0) game_send("chatavail %d\n", chat_avail);
-                game_send("master %d\n", m_welcomed);
-                prefs_send();
-                stream_send();
-                blen = 0;
-                last_ping = now_ns();
-                logf_("game connected");
-            }
-        }
-        if (cl != SOCK_BAD && (pf[2].revents & (POLLIN | POLLHUP | POLLERR))) {
+        if (icl >= 0 && (pf[icl].revents & (POLLIN | POLLHUP | POLLERR))) {
             int r = (int)recv(cl, buf + blen, (int)(sizeof buf - 1 - blen), 0);
             if (r <= 0) {
                 sock_close(cl);
@@ -3435,16 +3442,50 @@ int main(void)
             } else {
                 blen += r;
                 buf[blen] = 0;
-                char *s = buf, *nl;
-                while ((nl = strchr(s, '\n'))) {
-                    *nl = 0;
-                    handle_line(s);
-                    s = nl + 1;
-                }
-                blen = strlen(s);
-                memmove(buf, s, blen + 1);
-                if (blen > sizeof buf / 2) blen = 0;   // garbage, drop it
+                blen = run_lines(buf, blen, sizeof buf);
             }
+        }
+        if (pf[0].revents & POLLIN) {
+            sock_t c = os_accept(ls);
+            if (c != SOCK_BAD) {
+                if (pend != SOCK_BAD) sock_close(pend);
+                pend = c;
+                plen = 0;
+                pend_at = now_ns();
+            }
+        }
+        if (ipend >= 0 && (pf[ipend].revents & (POLLIN | POLLHUP | POLLERR))) {
+            int r = (int)recv(pend, pbuf + plen, (int)(sizeof pbuf - 1 - plen), 0);
+            char *nl = NULL;
+            int http = 0;
+            if (r > 0) {
+                plen += r;
+                pbuf[plen] = 0;
+                if ((nl = strchr(pbuf, '\n'))) { *nl = 0; http = strstr(pbuf, " HTTP/") != NULL; *nl = '\n'; }
+            }
+            if (r <= 0 || http || (!nl && plen >= sizeof pbuf - 1)) {
+                if (r > 0) logf_("closed a connection that isn't the game (a web page?)");
+                sock_close(pend);
+                pend = SOCK_BAD;
+            } else if (nl) {
+                if (cl != SOCK_BAD) sock_close(cl);   // newest game connection wins
+                cl = pend;
+                pend = SOCK_BAD;
+                game_fd = cl;
+                game_send("chat %d\n", chat_state);
+                if (chat_avail >= 0) game_send("chatavail %d\n", chat_avail);
+                game_send("master %d\n", m_welcomed);
+                prefs_send();
+                stream_send();
+                last_ping = now_ns();
+                logf_("game connected");
+                memcpy(buf, pbuf, plen + 1);
+                blen = run_lines(buf, plen, sizeof buf);
+            }
+        }
+        if (pend != SOCK_BAD && now_ns() - pend_at > 5000000000ull) {
+            sock_close(pend);
+            pend = SOCK_BAD;
         }
         if (cl != SOCK_BAD && cur_url[0] && now_ns() - last_ping > 3000000000ull) stop_playback("no ping from the game for 3 s");
         m_tick();
