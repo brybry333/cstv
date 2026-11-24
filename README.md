@@ -67,6 +67,15 @@ To build it (cross-compiled on Linux), get the Source SDK headers as above, then
 
 This needs clang, lld, mingw-w64-gcc and an [xwin](https://github.com/Jake-Shadle/xwin) splat in `~/.local/share/xwin`.
 
+## Troubleshooting
+
+**"Couldn't play this: its address isn't public (or doesn't resolve)"** on every YouTube link means your PC's DNS
+can't find the site. Check with `ping www.youtube.com`. If it can't find the host, your ISP is hiding the name. This
+happens in Russia, even with zapret and even when asking 8.8.8.8 directly. Your browser may still play YouTube
+because it uses its own encrypted DNS. Turn on encrypted DNS for the whole PC. On Windows 11, go to Settings →
+Network & internet → your connection → DNS server assignment → Edit → Manual, enter `8.8.8.8` and `8.8.4.4`, and
+set DNS over HTTPS to On. Run `ipconfig /flushdns`, check that `ping` now shows an address, then restart CS:S.
+
 ## Progress Log
 
 `cstv/client/cstv_prog.inc` is the Progress Log's Minecraft-book window, currently built as part of this client.
